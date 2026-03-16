@@ -1,0 +1,16 @@
+[package]
+name = "tinkerwars"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+tokio = { version = "1.48.0", features = ["rt-multi-thread", "sync", "net", "macros", "time"] }
+sdl2 = { version = "0.38.0", features = ["ttf", "image", "unsafe_textures"] }
+tokio-util = { version = "0.7.17", features = ["codec"] }
+rapier2d = { version = "0.31", features = ["parallel"] }
+rand = "0.10.0-rc.5"
+futures = "0.3.31"
+bincode = "2.0.1"
+
+[profile.release]
+opt-level = 3

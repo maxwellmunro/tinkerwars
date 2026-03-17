@@ -232,6 +232,241 @@ pub const fn get_mask_texture(kind: ComponentKind) -> TextureId {
     }
 }
 
+pub mod command_shapes {
+    use rapier2d::math::Point;
+    use rapier2d::na::point;
+    use rapier2d::prelude::nalgebra;
+
+    pub const ACOS: &[&[Point<f32>]] = &[&[
+        point![-17.0, -11.0],
+        point![17.0, -11.0],
+        point![17.0, 11.0],
+        point![-17.0, 11.0],
+    ]];
+
+    pub const ADD: &[&[Point<f32>]] = &[&[
+        point![-11.0, -11.0],
+        point![11.0, -11.0],
+        point![11.0, 11.0],
+        point![-11.0, 11.0],
+    ]];
+
+    pub const AND: &[&[Point<f32>]] = &[&[
+        point![-25.0, -11.0],
+        point![17.0, -11.0],
+        point![26.0, -3.0],
+        point![26.0, 3.0],
+        point![17.0, 11.0],
+        point![-25.0, 11.0],
+    ]];
+
+    pub const ASIN: &[&[Point<f32>]] = &[&[
+        point![-17.0, -11.0],
+        point![17.0, -11.0],
+        point![17.0, 11.0],
+        point![-17.0, 11.0],
+    ]];
+
+    pub const ATAN: &[&[Point<f32>]] = &[&[
+        point![-17.0, -11.0],
+        point![17.0, -11.0],
+        point![17.0, 11.0],
+        point![-17.0, 11.0],
+    ]];
+
+    pub const ATAN2: &[&[Point<f32>]] = &[&[
+        point![-21.0, -11.0],
+        point![21.0, -11.0],
+        point![21.0, 11.0],
+        point![-21.0, 11.0],
+    ]];
+
+    pub const CONST: &[&[Point<f32>]] = &[&[
+        point![-13.0, -11.0],
+        point![10.0, -11.0],
+        point![10.0, 11.0],
+        point![-13.0, 11.0],
+    ]];
+
+    pub const COS: &[&[Point<f32>]] = &[&[
+        point![-14.0, -11.0],
+        point![14.0, -11.0],
+        point![14.0, 11.0],
+        point![-14.0, 11.0],
+    ]];
+
+    pub const DIV: &[&[Point<f32>]] = &[&[
+        point![-11.0, -11.0],
+        point![11.0, -11.0],
+        point![11.0, 11.0],
+        point![-11.0, 11.0],
+    ]];
+
+    pub const FALSE: &[&[Point<f32>]] = &[&[
+        point![-13.0, -10.0],
+        point![10.0, -10.0],
+        point![10.0, 10.0],
+        point![-13.0, 10.0],
+    ]];
+
+    pub const GREATER_THAN: &[&[Point<f32>]] = &[&[
+        point![-11.0, -11.0],
+        point![11.0, -11.0],
+        point![11.0, 11.0],
+        point![-11.0, 11.0],
+    ]];
+
+    pub const IF: &[&[Point<f32>]] =
+        &[&[point![-21.0, 0.0], point![21.0, -11.0], point![21.0, 11.0]]];
+
+    pub const LESS_THAN: &[&[Point<f32>]] = &[&[
+        point![-11.0, -11.0],
+        point![11.0, -11.0],
+        point![11.0, 11.0],
+        point![-11.0, 11.0],
+    ]];
+
+    pub const MUL: &[&[Point<f32>]] = &[&[
+        point![-11.0, -11.0],
+        point![11.0, -11.0],
+        point![11.0, 11.0],
+        point![-11.0, 11.0],
+    ]];
+
+    pub const NEG: &[&[Point<f32>]] = &[&[
+        point![-11.0, -11.0],
+        point![11.0, -11.0],
+        point![11.0, 11.0],
+        point![-11.0, 11.0],
+    ]];
+
+    pub const NOT: &[&[Point<f32>]] =
+        &[&[point![-21.0, -11.0], point![21.0, 0.0], point![-21.0, 11.0]]];
+
+    pub const ONKEYDOWN: &[&[Point<f32>]] = &[&[
+        point![-36.0, -11.0],
+        point![33.0, -11.0],
+        point![33.0, 11.0],
+        point![-36.0, 11.0],
+    ]];
+
+    pub const ONKEYUP: &[&[Point<f32>]] = &[&[
+        point![-36.0, -11.0],
+        point![33.0, -11.0],
+        point![33.0, 11.0],
+        point![-36.0, 11.0],
+    ]];
+
+    pub const OR: &[&[Point<f32>]] = &[&[
+        point![-28.0, -11.0],
+        point![17.0, -11.0],
+        point![25.0, -3.0],
+        point![25.0, 3.0],
+        point![17.0, -11.0],
+        point![-28.0, -11.0],
+        point![-22.0, 0.0],
+    ]];
+
+    pub const POW: &[&[Point<f32>]] = &[&[
+        point![-11.0, -11.0],
+        point![11.0, -11.0],
+        point![11.0, 11.0],
+        point![-11.0, 11.0],
+    ]];
+
+    pub const SETSTATE: &[&[Point<f32>]] = &[&[
+        point![-30.0, -11.0],
+        point![33.0, -11.0],
+        point![33.0, 11.0],
+        point![-30.0, 11.0],
+    ]];
+
+    pub const SIN: &[&[Point<f32>]] = &[&[
+        point![-14.0, -11.0],
+        point![14.0, -11.0],
+        point![14.0, 11.0],
+        point![-14.0, 11.0],
+    ]];
+
+    pub const SQRT: &[&[Point<f32>]] = &[&[
+        point![-11.0, -11.0],
+        point![11.0, -11.0],
+        point![11.0, 11.0],
+        point![-11.0, 11.0],
+    ]];
+
+    pub const SUB: &[&[Point<f32>]] = &[&[
+        point![-11.0, -11.0],
+        point![11.0, -11.0],
+        point![11.0, 11.0],
+        point![-11.0, 11.0],
+    ]];
+
+    pub const TAN: &[&[Point<f32>]] = &[&[
+        point![-14.0, -11.0],
+        point![14.0, -11.0],
+        point![14.0, 11.0],
+        point![-14.0, 11.0],
+    ]];
+
+    pub const TERNARY: &[&[Point<f32>]] = &[&[
+        point![-11.0, -11.0],
+        point![11.0, -11.0],
+        point![11.0, 11.0],
+        point![-11.0, 11.0],
+    ]];
+
+    pub const TRUE: &[&[Point<f32>]] = &[&[
+        point![-13.0, -11.0],
+        point![10.0, -11.0],
+        point![10.0, 11.0],
+        point![-13.0, 11.0],
+    ]];
+
+    pub const XOR: &[&[Point<f32>]] = &[&[
+        point![-28.0, -11.0],
+        point![17.0, -11.0],
+        point![25.0, -3.0],
+        point![25.0, 3.0],
+        point![17.0, -11.0],
+        point![-28.0, -11.0],
+        point![-22.0, 0.0],
+    ]];
+}
+
+pub const fn get_command_shape(data: &CommandData) -> &'static [&'static [Point<f32>]] {
+    match data {
+        CommandData::OnKeyDown { .. } => command_shapes::ONKEYUP,
+        CommandData::OnKeyUp { .. } => command_shapes::ONKEYDOWN,
+        CommandData::SetState { .. } => command_shapes::SETSTATE,
+        CommandData::Const { .. } => command_shapes::CONST,
+        CommandData::True => command_shapes::TRUE,
+        CommandData::False => command_shapes::FALSE,
+        CommandData::Add => command_shapes::ADD,
+        CommandData::Sub => command_shapes::SUB,
+        CommandData::Neg => command_shapes::NEG,
+        CommandData::Mul => command_shapes::MUL,
+        CommandData::Div => command_shapes::DIV,
+        CommandData::Sqrt => command_shapes::SQRT,
+        CommandData::Pow => command_shapes::POW,
+        CommandData::Sin => command_shapes::SIN,
+        CommandData::Cos => command_shapes::COS,
+        CommandData::Tan => command_shapes::TAN,
+        CommandData::Asin => command_shapes::ASIN,
+        CommandData::Acos => command_shapes::ACOS,
+        CommandData::Atan => command_shapes::ATAN,
+        CommandData::Atan2 => command_shapes::ATAN2,
+        CommandData::LessThan => command_shapes::LESS_THAN,
+        CommandData::GreaterThan => command_shapes::GREATER_THAN,
+        CommandData::And => command_shapes::AND,
+        CommandData::Or => command_shapes::OR,
+        CommandData::Xor => command_shapes::XOR,
+        CommandData::Not => command_shapes::NOT,
+        CommandData::Ternary => command_shapes::TERNARY,
+        CommandData::If => command_shapes::IF,
+    }
+}
+
 pub const fn get_command_texture(data: &CommandData) -> TextureId {
     match data {
         CommandData::OnKeyDown { .. } => TextureId::ProgrammingOnKeyDown,

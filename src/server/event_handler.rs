@@ -5,7 +5,7 @@ use crate::server::interface_handler::get_part_picking_buttons;
 use crate::server::packet_handler::TcpResponse;
 use crate::server::server::Server;
 use crate::texture_handler::TextureId;
-use rand::Rng;
+use rand::RngExt;
 use sdl2::event::Event;
 use sdl2::keyboard::Keycode;
 use sdl2::mouse::MouseButton;

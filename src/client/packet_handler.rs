@@ -1,8 +1,9 @@
+use rand::RngExt;
+
 use crate::client::component_list::ComponentListItem;
 use crate::constants;
 use crate::game::game_data::{GameData, State};
 use crate::packet::{TcpPacket, UdpPacket};
-use rand::Rng;
 
 pub(in crate::client) async fn handle_tcp_packet(
     packet: TcpPacket,

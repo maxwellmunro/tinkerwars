@@ -1,5 +1,7 @@
+use std::f32::consts::PI;
+
 use rapier2d::parry::utils::hashmap::HashMap;
-use sdl2::{keyboard::Keycode, rect::Rect, render::Canvas, video::Window};
+use sdl2::{keyboard::Keycode, rect::{Point, Rect}, render::Canvas, video::Window};
 
 use crate::{
     client::building::BuildingMenu,
@@ -271,22 +273,47 @@ impl Command {
         }
     }
 
-    pub(in crate::client) fn render(
-        &self,
-        texture_handler: &TextureHandler,
-        menu: &BuildingMenu,
-        canvas: &mut Canvas<Window>,
-    ) -> Result<(), String> {
-        let tex = texture_handler.get_texture(get_command_texture(&self.data));
-
-        let (x, y) = menu.to_screen(
-            self.pos.x - tex.1.0 as f32 / 2.0,
-            self.pos.y - tex.1.1 as f32 / 2.0,
-        );
-
-        let rect = Rect::new(x, y, tex.1.0, tex.1.1);
-        canvas.copy(tex.0, None, Some(rect))?;
-
-        Ok(())
+    pub(in crate::client) fn get_data(&self) -> &CommandData {
+        &self.data
     }
+
+    pub(in crate::client) fn get_pos(&self) -> (f32, f32) {
+        (self.pos.x, self.pos.y)
+    }
+}
+
+pub(crate) fn render_command(
+    canvas: &mut Canvas<Window>,
+    texture_handler: &TextureHandler,
+    command_data: &CommandData,
+    x: i32,
+    y: i32,
+    rot: f32,
+    scale: f32,
+    _selected: bool,
+) -> Result<(), String> {
+    let mut tex = texture_handler.get_texture(get_command_texture(command_data));
+
+    tex.1.0 = (tex.1.0 as f32 * scale) as u32;
+    tex.1.1 = (tex.1.1 as f32 * scale) as u32;
+
+    let dst = Rect::new(
+        (x as f32 - tex.1.0 as f32 / 2.0) as i32,
+        (y as f32 - tex.1.1 as f32 / 2.0) as i32,
+        tex.1.0,
+        tex.1.1,
+    );
+    let center = Point::new(dst.width() as i32 / 2, dst.height() as i32 / 2);
+
+    canvas.copy_ex(
+        tex.0,
+        None,
+        Some(dst),
+        (rot * 180.0 / PI) as f64,
+        center,
+        false,
+        false,
+    )?;
+
+    Ok(())
 }

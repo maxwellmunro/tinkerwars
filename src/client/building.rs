@@ -1,3 +1,4 @@
+use crate::client::programming::{Command, CommandHandle, CommandSet};
 use crate::game::component::{ComponentKind, render_component};
 use crate::game::game_data::{GameData, State};
 use crate::polygon::Vec2;
@@ -23,7 +24,6 @@ pub struct RobotComponent {
 }
 
 impl RobotComponent {
-
     /// list of hitboxes transformed to world coordinates + rotation
     fn get_shapes(&self) -> Vec<Vec<rapier2d::math::Point<f32>>> {
         constants::get_component_shape(self.kind)
@@ -82,6 +82,7 @@ impl Screw {
 #[derive(Default, Clone)]
 pub(crate) struct Robot {
     components: HashMap<u64, RobotComponent>,
+    commands: CommandSet,
     pub screws: Vec<Screw>,
     next_id: u64,
 }
@@ -90,6 +91,7 @@ impl Robot {
     pub fn new() -> Self {
         Robot {
             components: HashMap::new(),
+            commands: CommandSet::new(),
             screws: Vec::new(),
             next_id: 0,
         }
@@ -103,8 +105,16 @@ impl Robot {
         id
     }
 
+    pub fn add_command(&mut self, command: Command) -> CommandHandle {
+        self.commands.add_command(command)
+    }
+
     /// Remove component + add any connected screws back to `GameData::building_components`
-    pub async fn remove_component(&mut self, id: u64, game_data: &GameData)-> Option<RobotComponent> {
+    pub async fn remove_component(
+        &mut self,
+        id: u64,
+        game_data: &GameData,
+    ) -> Option<RobotComponent> {
         let pre = self.screws.len();
 
         self.screws.retain(|s| s.a.0 != id && s.b.0 != id);
@@ -121,7 +131,6 @@ impl Robot {
             } else {
                 building_components.insert(ComponentKind::Screw, screw_count as u64);
             }
-
         }
 
         self.components.remove(&id)
@@ -135,6 +144,13 @@ impl Robot {
 enum ScrewSelectingState {
     SelectingA,
     SelectingB,
+}
+
+#[derive(Debug, Default, Clone, Copy)]
+enum BuildingState {
+    #[default]
+    Assembling,
+    Programming,
 }
 
 pub(in crate::client) struct BuildingMenu {
@@ -177,6 +193,8 @@ pub(in crate::client) struct BuildingMenu {
     /// Current index of `screwing_selections`
     selecting_screw_id: Option<u64>,
     screw_selecting_state: ScrewSelectingState,
+
+    state: BuildingState,
 }
 
 impl BuildingMenu {
@@ -213,6 +231,8 @@ impl BuildingMenu {
 
             selecting_screw_id: None,
             screw_selecting_state: ScrewSelectingState::SelectingA,
+
+            state: Default::default(),
         }
     }
 
@@ -232,22 +252,29 @@ impl BuildingMenu {
         texture_handler: &TextureHandler<'_>,
         game_data: GameData,
     ) -> Result<(), String> {
-        self.render_robot(windowing, texture_handler)?;
+        match self.state {
+            BuildingState::Assembling => {
+                self.render_robot(windowing, texture_handler)?;
 
-        if self.render_hitboxes {
-            self.render_hitboxes(windowing)?;
-        }
+                if self.render_hitboxes {
+                    self.render_hitboxes(windowing)?;
+                }
 
-        if self.selecting_screw_id.is_none() {
-            self.render_part_select(game_data, windowing, texture_handler)
-                .await?;
-            self.render_dragging_part(windowing, texture_handler)?;
+                if self.selecting_screw_id.is_none() {
+                    self.render_part_select(game_data, windowing, texture_handler)
+                        .await?;
+                    self.render_dragging_part(windowing, texture_handler)?;
 
-            let done_tex = texture_handler.get_texture(TextureId::DoneButton);
+                    let done_tex = texture_handler.get_texture(TextureId::DoneButton);
 
-            let rect = Rect::new(10, 10, done_tex.1.0, done_tex.1.1);
+                    let rect = Rect::new(10, 10, done_tex.1.0, done_tex.1.1);
 
-            windowing.canvas.copy(done_tex.0, None, Some(rect));
+                    windowing.canvas.copy(done_tex.0, None, Some(rect))?;
+                }
+            }
+            BuildingState::Programming => {
+                self.render_commands(windowing, texture_handler)?;
+            }
         }
 
         Ok(())
@@ -387,6 +414,22 @@ impl BuildingMenu {
 
             Ok::<(), String>(())
         })
+    }
+
+    fn render_commands(
+        &self,
+        windowing: &mut Windowing,
+        texture_handler: &TextureHandler,
+    ) -> Result<(), String> {
+        self.robot
+            .commands
+            .get_commands()
+            .iter()
+            .try_for_each(|(_, c)| {
+                c.render(texture_handler, self, &mut windowing.canvas)?;
+                Ok::<(), String>(())
+            })?;
+        Ok(())
     }
 
     async fn render_part_select(
@@ -690,7 +733,6 @@ impl BuildingMenu {
         let rect = Rect::new(10, 10, done_size.0, done_size.1);
         if rect.contains_point(Point::new(mouse_x, mouse_y)) {
             *game_data.state.write().await = State::InGame;
-
         }
     }
 
@@ -846,14 +888,14 @@ impl BuildingMenu {
         self.target_scroll = self.target_scroll.min(0);
     }
 
-    fn to_world(&self, x: i32, y: i32) -> (f32, f32) {
+    pub(in crate::client) fn to_world(&self, x: i32, y: i32) -> (f32, f32) {
         (
             x as f32 / self.zoom / constants::PIXELS_PER_METER + self.dx,
             y as f32 / self.zoom / constants::PIXELS_PER_METER + self.dy,
         )
     }
 
-    fn to_screen(&self, x: f32, y: f32) -> (i32, i32) {
+    pub(in crate::client) fn to_screen(&self, x: f32, y: f32) -> (i32, i32) {
         (
             ((x - self.dx) * self.zoom * constants::PIXELS_PER_METER) as i32,
             ((y - self.dy) * self.zoom * constants::PIXELS_PER_METER) as i32,

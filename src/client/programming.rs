@@ -1,17 +1,19 @@
 use rapier2d::parry::utils::hashmap::HashMap;
-use sdl2::keyboard::Keycode;
+use sdl2::{keyboard::Keycode, rect::Rect, render::Canvas, video::Window};
 
 use crate::{
+    client::building::BuildingMenu,
+    constants::get_command_texture,
     game::{
         component::{ComponentActivationState, ComponentHandle},
         world::{KeyState, World},
     },
     polygon::Vec2,
+    texture_handler::TextureHandler,
 };
-use std::num::NonZeroU64;
 
 #[derive(Clone, Copy, Debug)]
-pub struct CommandHandle(Option<NonZeroU64>);
+pub struct CommandHandle(u64);
 
 #[derive(Clone, Debug)]
 pub enum CommandData {
@@ -63,9 +65,9 @@ pub enum CommandData {
 
 #[derive(Clone, Copy)]
 pub enum Data {
-    Number(f32), // #df7126 // orange
+    Number(f32),   // #df7126 // orange
     Boolean(bool), // #5b6ee1 // blue
-    Action(bool), // #ac3232 // red
+    Action(bool),  // #ac3232 // red
     None,
 }
 
@@ -77,6 +79,7 @@ pub struct Command {
     data: CommandData,
 }
 
+#[derive(Default, Clone)]
 pub struct CommandSet {
     commands: HashMap<u64, Command>,
     next_id: u64,
@@ -90,12 +93,25 @@ impl CommandSet {
         }
     }
 
-    pub fn get(&self, handle: CommandHandle) -> Option<&Command> {
-        let Some(id) = handle.0 else {
-            return None;
-        };
+    pub fn add_command(&mut self, command: Command) -> CommandHandle {
+        let id = self.next_id;
+        self.next_id += 1;
 
-        self.commands.get(&id.get())
+        self.commands.insert(id, command);
+
+        CommandHandle(id)
+    }
+
+    pub fn get(&self, handle: CommandHandle) -> Option<&Command> {
+        self.commands.get(&handle.0)
+    }
+
+    pub fn remove(&mut self, handle: CommandHandle) -> Option<Command> {
+        self.commands.remove(&handle.0)
+    }
+
+    pub fn get_commands(&self) -> &HashMap<u64, Command> {
+        &self.commands
     }
 }
 
@@ -253,5 +269,24 @@ impl Command {
                 Data::None
             }
         }
+    }
+
+    pub(in crate::client) fn render(
+        &self,
+        texture_handler: &TextureHandler,
+        menu: &BuildingMenu,
+        canvas: &mut Canvas<Window>,
+    ) -> Result<(), String> {
+        let tex = texture_handler.get_texture(get_command_texture(&self.data));
+
+        let (x, y) = menu.to_screen(
+            self.pos.x - tex.1.0 as f32 / 2.0,
+            self.pos.y - tex.1.1 as f32 / 2.0,
+        );
+
+        let rect = Rect::new(x, y, tex.1.0, tex.1.1);
+        canvas.copy(tex.0, None, Some(rect))?;
+
+        Ok(())
     }
 }

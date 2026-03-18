@@ -24,9 +24,12 @@ pub const PART_SELECT_SQUARE_DIST: i32 = PART_SELECT_MAX_DIST.pow(2);
 pub const PART_SELECT_MS_PER_UNIT: u32 = 5000;
 pub const PART_SELECT_POS_ATTEMPTS: u32 = 10;
 
+/// width of programming blocks links in world units
+pub const PROGRAMMING_LINK_SIZE: f32 = 0.6;
+
 pub mod window {
-    pub const SERVER_TITLE: &str = "Combat Protocol - Server";
-    pub const CLIENT_TITLE: &str = "Combat Protocol";
+    pub const SERVER_TITLE: &str = "Tinkerwars - Server";
+    pub const CLIENT_TITLE: &str = "Tinkerwars";
     pub const DEFAULT_WIDTH: u32 = 800;
     pub const DEFAULT_HEIGHT: u32 = 600;
 }
@@ -315,7 +318,6 @@ pub mod command_shapes {
         point![2.3, -2.3],
         point![2.3, 2.3],
         point![-2.3, 2.3],
-        
     ]];
 
     pub const IF: &[&[Point<f32>]] =
@@ -534,4 +536,116 @@ pub const fn get_command_texture(data: &CommandData) -> TextureId {
         CommandData::Ternary => TextureId::ProgrammingTernary,
         CommandData::If => TextureId::ProgrammingIf,
     }
+}
+
+pub mod command_link_positions {
+    use rapier2d::math::Point;
+    use rapier2d::na::point;
+    use rapier2d::prelude::nalgebra;
+
+    pub const ACOS: [&[Point<f32>]; 2] = [&[point![-3.8, 0.0]], &[point![3.8, 0.0]]];
+    pub const ADD: [&[Point<f32>]; 2] = [
+        &[point![-2.6, -1.0], point![-2.6, 1.0]],
+        &[point![2.6, 0.0]],
+    ];
+    pub const AND: [&[Point<f32>]; 2] = [
+        &[point![-5.3, -1.0], point![-5.3, 1.0]],
+        &[point![5.3, 0.0]],
+    ];
+    pub const ASIN: [&[Point<f32>]; 2] = [&[point![-3.8, 0.0]], &[point![3.8, 0.0]]];
+    pub const ATAN: [&[Point<f32>]; 2] = [&[point![-3.8, 0.0]], &[point![3.8, 0.0]]];
+    pub const ATAN2: [&[Point<f32>]; 2] = [
+        &[point![-4.5, -1.0], point![-4.5, 1.0]],
+        &[point![4.5, 0.0]],
+    ];
+    pub const CONST: [&[Point<f32>]; 2] = [&[], &[point![2.3, 0.0]]];
+    pub const COS: [&[Point<f32>]; 2] = [&[point![-3.1, 0.0]], &[point![3.1, 0.0]]];
+    pub const DIV: [&[Point<f32>]; 2] = [
+        &[point![-2.6, -1.0], point![-2.6, 1.0]],
+        &[point![2.6, 0.0]],
+    ];
+    pub const FALSE: [&[Point<f32>]; 2] = [&[], &[point![2.3, 0.0]]];
+    pub const GREATER_THAN: [&[Point<f32>]; 2] = [
+        &[point![-2.6, -1.0], point![-2.6, 1.0]],
+        &[point![2.6, 0.0]],
+    ];
+    pub const IF: [&[Point<f32>]; 2] =
+        [&[point![-5.1, 0.0]], &[point![5.1, -1.0], point![5.1, 1.0]]];
+    pub const LESS_THAN: [&[Point<f32>]; 2] = [
+        &[point![-2.6, -1.0], point![-2.6, 1.0]],
+        &[point![2.6, 0.0]],
+    ];
+    pub const MUL: [&[Point<f32>]; 2] = [
+        &[point![-2.6, 0.0]],
+        &[point![2.6, 0.0]],
+    ];
+    pub const NEG: [&[Point<f32>]; 2] = [
+        &[point![-2.6, 0.0]],
+        &[point![2.6, 0.0]],
+    ];
+    pub const NOT: [&[Point<f32>]; 2] = [
+        &[point![-5.1, -1.0], point![-5.1, 1.0]],
+        &[point![5.1, 0.0]],
+    ];
+    pub const ONKEYDOWN: [&[Point<f32>]; 2] = [&[], &[point![7.0, 0.0]]];
+    pub const ONKEYUP: [&[Point<f32>]; 2] = [&[], &[point![5.6, 0.0]]];
+    pub const OR: [&[Point<f32>]; 2] = [
+        &[point![-5.3, -1.0], point![-5.3, 1.0]],
+        &[point![5.3, 0.0]],
+    ];
+    pub const POW: [&[Point<f32>]; 2] = [
+        &[point![-2.6, -1.0], point![-2.6, 1.0]],
+        &[point![2.6, 0.0]],
+    ];
+    pub const SETSTATE: [&[Point<f32>]; 2] = [&[point![-6.3, 0.0]], &[]];
+    pub const SIN: [&[Point<f32>]; 2] = [&[point![-3.1, 0.0]], &[point![3.1, 0.0]]];
+    pub const SQRT: [&[Point<f32>]; 2] = [&[point![-2.6, 0.0]], &[point![2.6, 0.0]]];
+    pub const SUB: [&[Point<f32>]; 2] = [
+        &[point![-2.6, -1.0], point![-2.6, 1.0]],
+        &[point![2.6, 0.0]],
+    ];
+    pub const TAN: [&[Point<f32>]; 2] = [&[point![-3.1, 0.0]], &[point![3.1, 0.0]]];
+    pub const TERNARY: [&[Point<f32>]; 2] = [
+        &[point![-2.6, -1.6], point![-2.6, 0.0], point![-2.6, 1.6]],
+        &[point![2.6, 0.0]],
+    ];
+    pub const TRUE: [&[Point<f32>]; 2] = [&[], &[point![2.3, 0.0]]];
+    pub const XOR: [&[Point<f32>]; 2] = [
+        &[point![-5.3, -1.0], point![-5.3, 1.0]],
+        &[point![5.3, 0.0]],
+    ];
+}
+
+pub fn get_command_link_positions(data: &CommandData) -> [&[Point<f32>]; 2] {
+    match data {
+        CommandData::OnKeyDown { .. } => command_link_positions::ONKEYDOWN,
+        CommandData::OnKeyUp { .. } => command_link_positions::ONKEYUP,
+        CommandData::SetState { .. } => command_link_positions::SETSTATE,
+        CommandData::Const { .. } => command_link_positions::CONST,
+        CommandData::True => command_link_positions::TRUE,
+        CommandData::False => command_link_positions::FALSE,
+        CommandData::Add => command_link_positions::ADD,
+        CommandData::Sub => command_link_positions::SUB,
+        CommandData::Neg => command_link_positions::NEG,
+        CommandData::Mul => command_link_positions::MUL,
+        CommandData::Div => command_link_positions::DIV,
+        CommandData::Sqrt => command_link_positions::SQRT,
+        CommandData::Pow => command_link_positions::POW,
+        CommandData::Sin => command_link_positions::SIN,
+        CommandData::Cos => command_link_positions::COS,
+        CommandData::Tan => command_link_positions::TAN,
+        CommandData::Asin => command_link_positions::ASIN,
+        CommandData::Acos => command_link_positions::ACOS,
+        CommandData::Atan => command_link_positions::ATAN,
+        CommandData::Atan2 => command_link_positions::ATAN2,
+        CommandData::LessThan => command_link_positions::LESS_THAN,
+        CommandData::GreaterThan => command_link_positions::GREATER_THAN,
+        CommandData::And => command_link_positions::AND,
+        CommandData::Or => command_link_positions::OR,
+        CommandData::Xor => command_link_positions::XOR,
+        CommandData::Not => command_link_positions::NOT,
+        CommandData::Ternary => command_link_positions::TERNARY,
+        CommandData::If => command_link_positions::IF,
+    }
+
 }

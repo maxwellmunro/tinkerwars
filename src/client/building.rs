@@ -1,5 +1,5 @@
 use crate::client::programming::{Command, CommandData, CommandHandle, CommandSet, render_command};
-use crate::constants::get_command_shape;
+use crate::constants::{get_command_link_positions, get_command_shape};
 use crate::game::component::{ComponentKind, render_component};
 use crate::game::game_data::{GameData, State};
 use crate::polygon::Vec2;
@@ -727,7 +727,36 @@ impl BuildingMenu {
                 let rect = Rect::new(x - 1, y - 1, 3, 3);
 
                 windowing.canvas.set_draw_color(Color::RGB(255, 0, 0));
-                windowing.canvas.fill_rect(rect);
+                windowing.canvas.fill_rect(rect)?;
+
+                let links = get_command_link_positions(command.get_data());
+                links[0].iter().try_for_each(|p| {
+                    let radius = (constants::PROGRAMMING_LINK_SIZE / 2.0
+                        * constants::PIXELS_PER_METER
+                        * self.zoom) as i32;
+                    let (x, y) = self.to_screen(p.x + pos.0, p.y + pos.1);
+                    let rect =
+                        Rect::new(x - radius, y - radius, radius as u32 * 2, radius as u32 * 2);
+
+                    windowing.canvas.set_draw_color(Color::RGB(0, 255, 0));
+                    windowing.canvas.draw_rect(rect)?;
+                    Ok::<(), String>(())
+                })?;
+
+                links[1].iter().try_for_each(|p| {
+                    let radius = (constants::PROGRAMMING_LINK_SIZE / 2.0
+                        * constants::PIXELS_PER_METER
+                        * self.zoom) as i32;
+                    let (x, y) = self.to_screen(p.x + pos.0, p.y + pos.1);
+                    let rect =
+                        Rect::new(x - radius, y - radius, radius as u32 * 2, radius as u32 * 2);
+
+                    dbg!(rect);
+
+                    windowing.canvas.set_draw_color(Color::RGB(0, 0, 255));
+                    windowing.canvas.draw_rect(rect)?;
+                    Ok::<(), String>(())
+                })?;
                 Ok::<(), String>(())
             })?;
 

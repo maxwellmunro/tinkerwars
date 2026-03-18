@@ -51,13 +51,13 @@ pub(in crate::client) async fn handle_tcp_packet(
                 return vec![];
             }
 
-            let mut rng = rand::rng();
+            let mut rng = rand::thread_rng();
 
             let mut best = (0.0, 0.0, 0); // (x, y, min_dist)
 
             for _ in 0..constants::PART_SELECT_POS_ATTEMPTS {
-                let target_x = rng.random_range(0.05..0.95);
-                let target_y = rng.random_range(0.05..0.95);
+                let target_x = rng.gen_range(0.05..0.95);
+                let target_y = rng.gen_range(0.05..0.95);
 
                 let dist = parts
                     .items()

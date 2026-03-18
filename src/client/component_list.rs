@@ -64,7 +64,7 @@ impl ComponentListItem {
 
             start_x: 0.5,
             start_y: 0.5,
-            start_rot: rand::rng().random_range(0.0..(2.0 * PI)),
+            start_rot: rand::thread_rng().gen_range(0.0..(2.0 * PI)),
 
             spawn_time: ticks(),
 
@@ -72,7 +72,7 @@ impl ComponentListItem {
 
             target_x: tx,
             target_y: ty,
-            target_rot: rand::rng().random_range(0.0..(2.0 * PI)),
+            target_rot: rand::thread_rng().gen_range(0.0..(2.0 * PI)),
 
             kind,
             count,

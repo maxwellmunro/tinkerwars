@@ -80,9 +80,9 @@ fn spawn_part(server: &mut Server<'_>) {
         ComponentKind::Screw,
     ];
 
-    let i = rand::rng().random_range(0..KINDS.len());
+    let i = rand::thread_rng().gen_range(0..KINDS.len());
     let kind = KINDS[i];
-    let count = rand::rng().random_range(5..=10);
+    let count = rand::thread_rng().gen_range(5..=10);
 
     server
         .network_handler

@@ -16,8 +16,6 @@ use sdl2::rect::{Point, Rect};
 use std::collections::HashMap;
 use std::f32::consts::PI;
 
-const A: rapier2d::prelude::nalgebra::Point<f32, 2> = point![0.0, 0.0];
-
 #[derive(Clone)]
 pub struct RobotComponent {
     kind: ComponentKind,
@@ -717,7 +715,23 @@ impl BuildingMenu {
                 windowing.canvas.draw_line(a, b)?;
             }
             Ok::<(), String>(())
-        })
+        })?;
+
+        self.robot
+            .commands
+            .get_commands()
+            .iter()
+            .try_for_each(|(_, command)| {
+                let pos = command.get_pos();
+                let (x, y) = self.to_screen(pos.0, pos.1);
+                let rect = Rect::new(x - 1, y - 1, 3, 3);
+
+                windowing.canvas.set_draw_color(Color::RGB(255, 0, 0));
+                windowing.canvas.fill_rect(rect);
+                Ok::<(), String>(())
+            })?;
+
+        Ok(())
     }
 
     fn render_hitboxes(&self, windowing: &mut Windowing) -> Result<(), String> {

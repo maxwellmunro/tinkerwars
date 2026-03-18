@@ -1,11 +1,16 @@
 use std::f32::consts::PI;
 
 use rapier2d::parry::utils::hashmap::HashMap;
-use sdl2::{keyboard::Keycode, rect::{Point, Rect}, render::Canvas, video::Window};
+use sdl2::{
+    keyboard::Keycode,
+    rect::{Point, Rect},
+    render::Canvas,
+    video::Window,
+};
 
 use crate::{
     client::building::BuildingMenu,
-    constants::get_command_texture,
+    constants::{get_command_texture, get_selected_command_texture},
     game::{
         component::{ComponentActivationState, ComponentHandle},
         world::{KeyState, World},
@@ -15,7 +20,7 @@ use crate::{
 };
 
 #[derive(Clone, Copy, Debug)]
-pub struct CommandHandle(u64);
+pub struct CommandHandle(pub u64);
 
 #[derive(Clone, Debug)]
 pub enum CommandData {
@@ -290,9 +295,13 @@ pub(crate) fn render_command(
     y: i32,
     rot: f32,
     scale: f32,
-    _selected: bool,
+    selected: bool,
 ) -> Result<(), String> {
-    let mut tex = texture_handler.get_texture(get_command_texture(command_data));
+    let mut tex = if selected {
+        texture_handler.get_texture(get_selected_command_texture(command_data))
+    } else {
+        texture_handler.get_texture(get_command_texture(command_data))
+    };
 
     tex.1.0 = (tex.1.0 as f32 * scale) as u32;
     tex.1.1 = (tex.1.1 as f32 * scale) as u32;

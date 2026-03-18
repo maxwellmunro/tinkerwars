@@ -10,7 +10,7 @@ use rapier2d::na::point;
 use rapier2d::prelude::nalgebra;
 use sdl2::event::Event;
 use sdl2::keyboard::Keycode;
-use sdl2::mouse::{MouseButton, MouseState};
+use sdl2::mouse::MouseButton;
 use sdl2::pixels::Color;
 use sdl2::rect::{Point, Rect};
 use std::collections::HashMap;
@@ -163,8 +163,6 @@ pub(in crate::client) struct BuildingMenu {
     /// Target scroll in px
     pub(in crate::client) target_scroll: i32,
 
-    last_pos: (f32, f32),
-
     pan_button_down_x: f32,
     pan_button_down_y: f32,
     pan_button_down: bool,
@@ -189,7 +187,8 @@ pub(in crate::client) struct BuildingMenu {
 
     render_hitboxes: bool,
 
-    selected_id: Option<u64>,
+    selected_component_id: Option<u64>,
+    selected_command_id: Option<u64>,
 
     screwing_selections: Vec<(u64, u64)>,
     screw_part_a: Option<(u64, u64)>,
@@ -206,8 +205,6 @@ pub(in crate::client) struct BuildingMenu {
 impl BuildingMenu {
     pub(in crate::client) fn new() -> Self {
         BuildingMenu {
-            last_pos: (0.0, 0.0),
-
             scroll: 0,
             target_scroll: 0,
 
@@ -230,7 +227,8 @@ impl BuildingMenu {
 
             render_hitboxes: true,
 
-            selected_id: None,
+            selected_component_id: None,
+            selected_command_id: None,
 
             screwing_selections: Vec::new(),
 
@@ -331,16 +329,18 @@ impl BuildingMenu {
                 }
 
                 if mouse_btn == MouseButton::Left {
-                    self.handle_part_drag(x, y, &game_data, windowing, texture_handler)
-                        .await;
-                    self.handle_command_drag(x, y, windowing, texture_handler);
-                    self.handle_part_select(x, y);
-                    self.handle_ui(x, y, game_data, texture_handler).await;
-
-                    let state = MouseState::new(&windowing.event_pump);
-                    let (mx, my) = self.to_world(state.x(), state.y());
-                    println!("dp: {}, {}", mx - self.last_pos.0, my - self.last_pos.1);
-                    self.last_pos = (mx, my);
+                    match self.state {
+                        BuildingState::Assembling => {
+                            self.handle_part_drag(x, y, &game_data, windowing, texture_handler)
+                                .await;
+                            self.handle_component_select(x, y);
+                            self.handle_ui(x, y, game_data, texture_handler).await;
+                        }
+                        BuildingState::Programming => {
+                            self.handle_command_drag(x, y, windowing, texture_handler);
+                            self.handle_command_select(x, y);
+                        }
+                    }
                 }
             }
             Event::MouseButtonUp {
@@ -397,7 +397,7 @@ impl BuildingMenu {
 
             let (x, y) = self.to_screen(world_x, world_y);
 
-            let selected = if let Some(selected) = self.selected_id
+            let selected = if let Some(selected) = self.selected_component_id
                 && selected == *id
             {
                 true
@@ -468,7 +468,14 @@ impl BuildingMenu {
             .commands
             .get_commands()
             .iter()
-            .try_for_each(|(_id, command)| {
+            .try_for_each(|(id, command)| {
+                let selected = if let Some(selected_id) = self.selected_command_id
+                    && *id == selected_id
+                {
+                    true
+                } else {
+                    false
+                };
                 let (mut world_x, mut world_y) = command.get_pos();
 
                 if self.pan_button_down {
@@ -504,7 +511,7 @@ impl BuildingMenu {
                     y,
                     0.0,
                     self.zoom,
-                    false,
+                    selected,
                 )?;
 
                 Ok::<(), String>(())
@@ -751,8 +758,6 @@ impl BuildingMenu {
                     let rect =
                         Rect::new(x - radius, y - radius, radius as u32 * 2, radius as u32 * 2);
 
-                    dbg!(rect);
-
                     windowing.canvas.set_draw_color(Color::RGB(0, 0, 255));
                     windowing.canvas.draw_rect(rect)?;
                     Ok::<(), String>(())
@@ -832,83 +837,100 @@ impl BuildingMenu {
             self.shift_down = pressed;
         }
 
-        if let Some(mut id) = self.selecting_screw_id {
-            if !pressed {
-                return;
-            }
-
-            if key == Keycode::Right {
-                id += 1;
-                if id as usize >= self.screwing_selections.len() {
-                    id = 0;
-                }
-            }
-
-            if key == Keycode::Left {
-                if id == 0 {
-                    id = self.screwing_selections.len() as u64;
-                }
-
-                id -= 1;
-            }
-
-            self.selecting_screw_id = Some(id);
-
-            match self.screw_selecting_state {
-                ScrewSelectingState::SelectingA => {
-                    self.screw_part_a = Some(self.screwing_selections[id as usize]);
-
-                    if key == Keycode::Return {
-                        self.screw_selecting_state = ScrewSelectingState::SelectingB;
-                        self.screwing_selections.remove(id as usize);
-                        self.screw_part_b = Some(self.screwing_selections[0]);
+        match self.state {
+            BuildingState::Assembling => {
+                if let Some(mut id) = self.selecting_screw_id {
+                    if !pressed {
+                        return;
                     }
-                }
-                ScrewSelectingState::SelectingB => {
-                    self.screw_part_b = Some(self.screwing_selections[id as usize]);
-                    if key == Keycode::Return {
-                        self.screw_selecting_state = ScrewSelectingState::SelectingA;
-                        self.robot.screws.push(Screw {
-                            a: self.screw_part_a.unwrap(),
-                            b: self.screw_part_b.unwrap(),
-                            pos: self.screw_world_pos,
-                        });
 
-                        self.screw_part_a = None;
-                        self.screw_part_b = None;
-
-                        self.selecting_screw_id = None;
-
-                        self.screwing_selections.clear();
+                    if key == Keycode::Right {
+                        id += 1;
+                        if id as usize >= self.screwing_selections.len() {
+                            id = 0;
+                        }
                     }
+
+                    if key == Keycode::Left {
+                        if id == 0 {
+                            id = self.screwing_selections.len() as u64;
+                        }
+
+                        id -= 1;
+                    }
+
+                    self.selecting_screw_id = Some(id);
+
+                    match self.screw_selecting_state {
+                        ScrewSelectingState::SelectingA => {
+                            self.screw_part_a = Some(self.screwing_selections[id as usize]);
+
+                            if key == Keycode::Return {
+                                self.screw_selecting_state = ScrewSelectingState::SelectingB;
+                                self.screwing_selections.remove(id as usize);
+                                self.screw_part_b = Some(self.screwing_selections[0]);
+                            }
+                        }
+                        ScrewSelectingState::SelectingB => {
+                            self.screw_part_b = Some(self.screwing_selections[id as usize]);
+                            if key == Keycode::Return {
+                                self.screw_selecting_state = ScrewSelectingState::SelectingA;
+                                self.robot.screws.push(Screw {
+                                    a: self.screw_part_a.unwrap(),
+                                    b: self.screw_part_b.unwrap(),
+                                    pos: self.screw_world_pos,
+                                });
+
+                                self.screw_part_a = None;
+                                self.screw_part_b = None;
+
+                                self.selecting_screw_id = None;
+
+                                self.screwing_selections.clear();
+                            }
+                        }
+                    }
+
+                    return;
+                }
+
+                if pressed && let Some(id) = self.selected_component_id {
+                    if key != Keycode::DELETE {
+                        return;
+                    }
+
+                    let Some(comp) = self.robot.remove_component(id, &game_data).await else {
+                        return;
+                    };
+
+                    let mut building_components = game_data.building_components.write().await;
+
+                    let found = building_components.iter_mut().any(|(kind, count)| {
+                        if *kind == comp.kind {
+                            *count += 1;
+                            return true;
+                        }
+
+                        false
+                    });
+
+                    if !found {
+                        building_components.insert(comp.kind, 1);
+                    }
+
+                    self.selected_component_id = None;
                 }
             }
 
-            return;
-        }
+            BuildingState::Programming => {
+                if pressed && let Some(id) = self.selected_command_id {
+                    if key != Keycode::DELETE {
+                        return;
+                    }
 
-        if pressed && let Some(id) = self.selected_id {
-            if key != Keycode::DELETE {
-                return;
-            }
-
-            let Some(comp) = self.robot.remove_component(id, &game_data).await else {
-                return;
-            };
-
-            let mut building_components = game_data.building_components.write().await;
-
-            let found = building_components.iter_mut().any(|(kind, count)| {
-                if *kind == comp.kind {
-                    *count += 1;
-                    return true;
+                    self.robot.commands.remove(CommandHandle(id));
+                    self.selected_command_id = None;
                 }
-
-                false
-            });
-
-            if !found {
-                building_components.insert(comp.kind, 1);
             }
         }
     }
@@ -1003,11 +1025,11 @@ impl BuildingMenu {
         }
     }
 
-    fn handle_part_select(&mut self, mouse_x: i32, mouse_y: i32) {
+    fn handle_component_select(&mut self, mouse_x: i32, mouse_y: i32) {
         let (x, y) = self.to_world(mouse_x, mouse_y);
         let mouse_pos = rapier2d::math::Point::new(x, y);
 
-        self.selected_id = None;
+        self.selected_component_id = None;
 
         for (id, comp) in self.robot.components.iter() {
             let selected = comp
@@ -1016,7 +1038,27 @@ impl BuildingMenu {
                 .any(|s| polygon::point_intersects_polygon(mouse_pos, &s));
 
             if selected {
-                self.selected_id = Some(*id);
+                self.selected_component_id = Some(*id);
+                break;
+            }
+        }
+    }
+
+    fn handle_command_select(&mut self, mouse_x: i32, mouse_y: i32) {
+        let (x, y) = self.to_world(mouse_x, mouse_y);
+        let mouse_pos = rapier2d::math::Point::new(x, y);
+
+        self.selected_command_id = None;
+
+        for (id, command) in self.robot.commands.get_commands().iter() {
+            let selected = get_command_shape(command.get_data()).into_iter().any(|s| {
+                let mut shape = s.to_vec();
+                polygon::translate_polygon(&mut shape, command.get_pos().0, command.get_pos().1);
+                polygon::point_intersects_polygon(mouse_pos, &shape)
+            });
+
+            if selected {
+                self.selected_command_id = Some(*id);
                 break;
             }
         }

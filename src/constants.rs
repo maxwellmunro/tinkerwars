@@ -538,6 +538,39 @@ pub const fn get_command_texture(data: &CommandData) -> TextureId {
     }
 }
 
+pub const fn get_selected_command_texture(data: &CommandData) -> TextureId {
+    match data {
+        CommandData::OnKeyDown { .. } => TextureId::SelectedProgrammingOnKeyDown,
+        CommandData::OnKeyUp { .. } => TextureId::SelectedProgrammingOnKeyUp,
+        CommandData::SetState { .. } => TextureId::SelectedProgrammingSetState,
+        CommandData::Const { .. } => TextureId::SelectedProgrammingConst,
+        CommandData::True => TextureId::SelectedProgrammingTrue,
+        CommandData::False => TextureId::SelectedProgrammingFalse,
+        CommandData::Add => TextureId::SelectedProgrammingAdd,
+        CommandData::Sub => TextureId::SelectedProgrammingSub,
+        CommandData::Neg => TextureId::SelectedProgrammingNeg,
+        CommandData::Mul => TextureId::SelectedProgrammingMul,
+        CommandData::Div => TextureId::SelectedProgrammingDiv,
+        CommandData::Sqrt => TextureId::SelectedProgrammingSqrt,
+        CommandData::Pow => TextureId::SelectedProgrammingPow,
+        CommandData::Sin => TextureId::SelectedProgrammingSin,
+        CommandData::Cos => TextureId::SelectedProgrammingCos,
+        CommandData::Tan => TextureId::SelectedProgrammingTan,
+        CommandData::Asin => TextureId::SelectedProgrammingAsin,
+        CommandData::Acos => TextureId::SelectedProgrammingAcos,
+        CommandData::Atan => TextureId::SelectedProgrammingAtan,
+        CommandData::Atan2 => TextureId::SelectedProgrammingAtan2,
+        CommandData::LessThan => TextureId::SelectedProgrammingLessThan,
+        CommandData::GreaterThan => TextureId::SelectedProgrammingGreaterThan,
+        CommandData::And => TextureId::SelectedProgrammingAnd,
+        CommandData::Or => TextureId::SelectedProgrammingOr,
+        CommandData::Xor => TextureId::SelectedProgrammingXor,
+        CommandData::Not => TextureId::SelectedProgrammingNot,
+        CommandData::Ternary => TextureId::SelectedProgrammingTernary,
+        CommandData::If => TextureId::SelectedProgrammingIf,
+    }
+}
+
 pub mod command_link_positions {
     use rapier2d::math::Point;
     use rapier2d::na::point;

@@ -3,6 +3,7 @@ use std::f32::consts::PI;
 use rapier2d::parry::utils::hashmap::HashMap;
 use sdl2::{
     keyboard::Keycode,
+    pixels::Color,
     rect::{Point, Rect},
     render::Canvas,
     video::Window,
@@ -10,13 +11,14 @@ use sdl2::{
 
 use crate::{
     client::building::BuildingMenu,
-    constants::{get_command_texture, get_selected_command_texture},
+    constants::{self, get_command_texture, get_selected_command_texture},
     game::{
         component::{ComponentActivationState, ComponentHandle},
         world::{KeyState, World},
     },
     polygon::Vec2,
     texture_handler::TextureHandler,
+    windowing::Windowing,
 };
 
 #[derive(Clone, Copy, Debug)]
@@ -70,20 +72,11 @@ pub enum CommandData {
     If,
 }
 
-#[derive(Clone, Copy)]
+#[derive(Debug, Clone, Copy)]
 pub enum Data {
     Number(f32),   // #df7126 // orange
     Boolean(bool), // #5b6ee1 // blue
     Action(bool),  // #ac3232 // red
-    None,
-}
-
-#[derive(Clone, Debug)]
-pub struct Command {
-    pub pos: Vec2,
-    inputs: Vec<Option<(CommandHandle, u8)>>,
-    outputs: Vec<Option<Vec<(CommandHandle, u8)>>>,
-    data: CommandData,
 }
 
 #[derive(Default, Clone)]
@@ -113,6 +106,10 @@ impl CommandSet {
         self.commands.get(&handle.0)
     }
 
+    pub fn get_mut(&mut self, handle: CommandHandle) -> Option<&mut Command> {
+        self.commands.get_mut(&handle.0)
+    }
+
     pub fn remove(&mut self, handle: CommandHandle) -> Option<Command> {
         self.commands.remove(&handle.0)
     }
@@ -120,54 +117,140 @@ impl CommandSet {
     pub fn get_commands(&self) -> &HashMap<u64, Command> {
         &self.commands
     }
+
+    pub fn get_commands_mut(&mut self) -> &mut HashMap<u64, Command> {
+        &mut self.commands
+    }
+}
+
+#[derive(Clone, Debug)]
+pub struct Command {
+    pub pos: Vec2,
+    inputs: Vec<Option<(CommandHandle, u8)>>,
+    outputs: Vec<Vec<(CommandHandle, u8)>>,
+    data: CommandData,
 }
 
 impl Command {
-    fn get_inputs_outputs(kind: &CommandData) -> (usize, usize) {
-        match kind {
-            CommandData::OnKeyDown { .. } => (0, 1),
-            CommandData::OnKeyUp { .. } => (0, 1),
-            CommandData::SetState { .. } => (1, 1),
-            CommandData::Add => (2, 1),
-            CommandData::Sub => (2, 1),
-            CommandData::Neg => (1, 1),
-            CommandData::Mul => (2, 1),
-            CommandData::Div => (2, 1),
-            CommandData::Sqrt => (1, 1),
-            CommandData::Pow => (2, 1),
-            CommandData::Sin => (1, 1),
-            CommandData::Cos => (1, 1),
-            CommandData::Tan => (1, 1),
-            CommandData::Asin => (1, 1),
-            CommandData::Acos => (1, 1),
-            CommandData::Atan => (1, 1),
-            CommandData::Atan2 => (2, 1),
-            CommandData::LessThan => (2, 1),
-            CommandData::GreaterThan => (2, 1),
-            CommandData::Const { .. } => (0, 1),
-            CommandData::True => (0, 1),
-            CommandData::False => (0, 1),
-            CommandData::And => (2, 1),
-            CommandData::Or => (2, 1),
-            CommandData::Xor => (2, 1),
-            CommandData::Not => (1, 1),
-            CommandData::Ternary => (3, 1),
-            CommandData::If => (1, 2),
-        }
-    }
-
     pub fn new(pos: Vec2, kind: CommandData) -> Self {
-        let (inputs, outputs) = Self::get_inputs_outputs(&kind);
+        let (inputs, outputs) = constants::get_command_io_counts(&kind);
 
         Command {
             pos,
             inputs: vec![None; inputs],
-            outputs: vec![None; outputs],
+            outputs: vec![vec![]; outputs],
             data: kind,
         }
     }
 
     pub fn tick(&mut self, world: &World) {}
+
+    pub(in crate::client) fn render(
+        &self,
+        canvas: &mut Canvas<Window>,
+        texture_handler: &TextureHandler,
+        scale: f32,
+        building_menu: &BuildingMenu,
+        selected: bool,
+        ml: (i32, i32),
+    ) -> Result<(), String> {
+        let mut tex = if selected {
+            texture_handler.get_texture(get_selected_command_texture(&self.data))
+        } else {
+            texture_handler.get_texture(get_command_texture(&self.data))
+        };
+
+        tex.1.0 = (tex.1.0 as f32 * scale) as u32;
+        tex.1.1 = (tex.1.1 as f32 * scale) as u32;
+
+        let (x, y) = building_menu.to_screen(self.pos.x, self.pos.y, ml);
+
+        let dst = Rect::new(
+            (x as f32 - tex.1.0 as f32 / 2.0) as i32,
+            (y as f32 - tex.1.1 as f32 / 2.0) as i32,
+            tex.1.0,
+            tex.1.1,
+        );
+
+        canvas.copy(tex.0, None, Some(dst))?;
+
+        self.outputs.iter().enumerate().try_for_each(|(o_id, o)| {
+            o.iter().try_for_each(|(handle, i_id)| {
+                let command = building_menu.get_robot().get_command(*handle);
+                if let Some(command) = command {
+                    let data_kind =
+                        constants::get_command_io_type(command.get_data()).0[*i_id as usize];
+
+                    canvas.set_draw_color(match data_kind {
+                        Data::Number(_) => Color::RGB(0xdf, 0x71, 0x26),
+                        Data::Boolean(_) => Color::RGB(0x5b, 0x63, 0xe1),
+                        Data::Action(_) => Color::RGB(0xac, 0x32, 0x32),
+                    });
+
+                    let (o_x, o_y) = {
+                        let output_rel_pos =
+                            constants::get_command_link_positions(self.get_data())[1][o_id];
+
+                        building_menu.to_screen(
+                            output_rel_pos.x + self.get_pos().0
+                                - constants::PROGRAMMING_LINK_SIZE / 2.0,
+                            output_rel_pos.y + self.get_pos().1
+                                - constants::PROGRAMMING_LINK_SIZE / 2.0,
+                            ml,
+                        )
+                    };
+
+                    let (i_x, i_y) = {
+                        let input_rel_pos =
+                            constants::get_command_link_positions(command.get_data())[0]
+                                [*i_id as usize];
+
+                        building_menu.to_screen(
+                            input_rel_pos.x + command.get_pos().0
+                                - constants::PROGRAMMING_LINK_SIZE / 2.0,
+                            input_rel_pos.y + command.get_pos().1
+                                - constants::PROGRAMMING_LINK_SIZE / 2.0,
+                            ml,
+                        )
+                    };
+
+                    let rect_a = Rect::new(
+                        o_x.min((o_x + i_x) / 2),
+                        o_y,
+                        ((i_x - o_x) / 2).abs() as u32
+                            + ((3 * constants::TEXTURE_SCALE) as f32 * scale) as u32,
+                        ((3 * constants::TEXTURE_SCALE) as f32 * scale) as u32,
+                    );
+
+                    let rect_b = Rect::new(
+                        (i_x + o_x) / 2,
+                        i_y.min(o_y),
+                        ((3 * constants::TEXTURE_SCALE) as f32 * scale) as u32,
+                        (o_y - i_y).abs() as u32,
+                    );
+
+                    let rect_c = Rect::new(
+                        i_x.min((o_x + i_x) / 2),
+                        i_y,
+                        ((i_x - o_x) / 2).abs() as u32,
+                        ((3 * constants::TEXTURE_SCALE) as f32 * scale) as u32,
+                    );
+
+                    canvas.fill_rect(rect_a)?;
+                    canvas.fill_rect(rect_b)?;
+                    canvas.fill_rect(rect_c)?;
+                }
+                Ok::<(), String>(())
+            })?;
+            Ok::<(), String>(())
+        })?;
+
+        Ok(())
+    }
+
+    pub fn connect(&mut self, handle: CommandHandle, o_id: u8, i_id: u8) {
+        self.outputs[o_id as usize].push((handle, i_id));
+    }
 
     pub fn evaluate(&self, world: &mut World, command_set: &mut CommandSet) -> Data {
         let inputs = self
@@ -175,11 +258,11 @@ impl Command {
             .iter()
             .map(|el| {
                 let Some((handle, id)) = el else {
-                    return Data::None;
+                    return Data::Number(0.0);
                 };
 
                 let Some(command) = command_set.get(*handle) else {
-                    return Data::None;
+                    return Data::Number(0.0);
                 };
 
                 command.clone().evaluate(world, command_set)
@@ -221,7 +304,7 @@ impl Command {
                         comp.set_state(*state);
                     }
                 }
-                Data::None
+                Data::Number(0.0)
             }
             CommandData::Add => Data::Number(nums[0] + nums[1]),
             CommandData::Sub => Data::Number(nums[0] - nums[1]),
@@ -254,12 +337,10 @@ impl Command {
                 }
             }
             CommandData::If => {
-                let Some(handles) = (if bools[0] {
+                let handles = if bools[0] {
                     &self.outputs[0]
                 } else {
                     &self.outputs[1]
-                }) else {
-                    return Data::None;
                 };
 
                 handles
@@ -273,7 +354,7 @@ impl Command {
                         c.evaluate(world, command_set);
                     });
 
-                Data::None
+                Data::Number(0.0)
             }
         }
     }

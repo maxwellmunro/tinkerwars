@@ -1,4 +1,4 @@
-use crate::client::programming::CommandData;
+use crate::client::programming::{CommandData, Data};
 use crate::game::component::{ComponentActivationState, ComponentKind};
 use crate::texture_handler::TextureId;
 use rapier2d::math::Point;
@@ -609,13 +609,10 @@ pub mod command_link_positions {
         &[point![2.6, 0.0]],
     ];
     pub const MUL: [&[Point<f32>]; 2] = [
-        &[point![-2.6, 0.0]],
+        &[point![-2.6, -1.0], point![-2.6, 1.0]],
         &[point![2.6, 0.0]],
     ];
-    pub const NEG: [&[Point<f32>]; 2] = [
-        &[point![-2.6, 0.0]],
-        &[point![2.6, 0.0]],
-    ];
+    pub const NEG: [&[Point<f32>]; 2] = [&[point![-2.6, 0.0]], &[point![2.6, 0.0]]];
     pub const NOT: [&[Point<f32>]; 2] = [
         &[point![-5.1, -1.0], point![-5.1, 1.0]],
         &[point![5.1, 0.0]],
@@ -680,5 +677,112 @@ pub fn get_command_link_positions(data: &CommandData) -> [&[Point<f32>]; 2] {
         CommandData::Ternary => command_link_positions::TERNARY,
         CommandData::If => command_link_positions::IF,
     }
+}
 
+pub fn get_command_io_counts(data: &CommandData) -> (usize, usize) {
+    match data {
+        CommandData::OnKeyDown { .. } => (0, 1),
+        CommandData::OnKeyUp { .. } => (0, 1),
+        CommandData::SetState { .. } => (1, 1),
+        CommandData::Add => (2, 1),
+        CommandData::Sub => (2, 1),
+        CommandData::Neg => (1, 1),
+        CommandData::Mul => (2, 1),
+        CommandData::Div => (2, 1),
+        CommandData::Sqrt => (1, 1),
+        CommandData::Pow => (2, 1),
+        CommandData::Sin => (1, 1),
+        CommandData::Cos => (1, 1),
+        CommandData::Tan => (1, 1),
+        CommandData::Asin => (1, 1),
+        CommandData::Acos => (1, 1),
+        CommandData::Atan => (1, 1),
+        CommandData::Atan2 => (2, 1),
+        CommandData::LessThan => (2, 1),
+        CommandData::GreaterThan => (2, 1),
+        CommandData::Const { .. } => (0, 1),
+        CommandData::True => (0, 1),
+        CommandData::False => (0, 1),
+        CommandData::And => (2, 1),
+        CommandData::Or => (2, 1),
+        CommandData::Xor => (2, 1),
+        CommandData::Not => (1, 1),
+        CommandData::Ternary => (3, 1),
+        CommandData::If => (1, 2),
+    }
+}
+
+pub fn get_command_io_type(data: &CommandData) -> (&[Data], &[Data]) {
+    match data {
+        CommandData::OnKeyDown { .. } => (&[], &[Data::Action(false)]),
+        CommandData::OnKeyUp { .. } => (&[], &[Data::Action(false)]),
+        CommandData::SetState { .. } => (&[Data::Action(false)], &[]),
+        CommandData::Const { .. } => (&[], &[Data::Number(0.0)]),
+        CommandData::True => (&[], &[Data::Boolean(false)]),
+        CommandData::False => (&[], &[Data::Boolean(false)]),
+        CommandData::Add => (
+            &[Data::Number(0.0), Data::Number(0.0)],
+            &[Data::Number(0.0)],
+        ),
+        CommandData::Sub => (
+            &[Data::Number(0.0), Data::Number(0.0)],
+            &[Data::Number(0.0)],
+        ),
+        CommandData::Neg => (&[Data::Number(0.0)], &[Data::Number(0.0)]),
+        CommandData::Mul => (
+            &[Data::Number(0.0), Data::Number(0.0)],
+            &[Data::Number(0.0)],
+        ),
+        CommandData::Div => (
+            &[Data::Number(0.0), Data::Number(0.0)],
+            &[Data::Number(0.0)],
+        ),
+        CommandData::Sqrt => (&[Data::Number(0.0)], &[Data::Number(0.0)]),
+        CommandData::Pow => (
+            &[Data::Number(0.0), Data::Number(0.0)],
+            &[Data::Number(0.0)],
+        ),
+        CommandData::Sin => (&[Data::Number(0.0)], &[Data::Number(0.0)]),
+        CommandData::Cos => (&[Data::Number(0.0)], &[Data::Number(0.0)]),
+        CommandData::Tan => (&[Data::Number(0.0)], &[Data::Number(0.0)]),
+        CommandData::Asin => (&[Data::Number(0.0)], &[Data::Number(0.0)]),
+        CommandData::Acos => (&[Data::Number(0.0)], &[Data::Number(0.0)]),
+        CommandData::Atan => (&[Data::Number(0.0)], &[Data::Number(0.0)]),
+        CommandData::Atan2 => (
+            &[Data::Number(0.0), Data::Number(0.0)],
+            &[Data::Number(0.0)],
+        ),
+        CommandData::LessThan => (
+            &[Data::Number(0.0), Data::Number(0.0)],
+            &[Data::Number(0.0)],
+        ),
+        CommandData::GreaterThan => (
+            &[Data::Number(0.0), Data::Number(0.0)],
+            &[Data::Number(0.0)],
+        ),
+        CommandData::And => (
+            &[Data::Boolean(false), Data::Boolean(false)],
+            &[Data::Boolean(false)],
+        ),
+        CommandData::Or => (
+            &[Data::Boolean(false), Data::Boolean(false)],
+            &[Data::Boolean(false)],
+        ),
+        CommandData::Xor => (
+            &[Data::Boolean(false), Data::Boolean(false)],
+            &[Data::Boolean(false)],
+        ),
+        CommandData::Not => (
+            &[Data::Boolean(false), Data::Boolean(false)],
+            &[Data::Boolean(false)],
+        ),
+        CommandData::Ternary => (
+            &[Data::Boolean(false), Data::Number(0.0), Data::Number(0.0)],
+            &[Data::Number(0.0)],
+        ),
+        CommandData::If => (
+            &[Data::Boolean(false)],
+            &[Data::Action(false), Data::Action(false)],
+        ),
+    }
 }

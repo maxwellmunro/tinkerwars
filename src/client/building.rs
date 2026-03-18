@@ -142,6 +142,17 @@ impl Robot {
     pub(crate) fn components(&self) -> &HashMap<u64, RobotComponent> {
         &self.components
     }
+
+    pub(in crate::client) fn get_command(&self, handle: CommandHandle) -> Option<&Command> {
+        self.commands.get(handle)
+    }
+
+    pub(in crate::client) fn get_command_mut(
+        &mut self,
+        handle: CommandHandle,
+    ) -> Option<&mut Command> {
+        self.commands.get_mut(handle)
+    }
 }
 
 enum ScrewSelectingState {
@@ -200,6 +211,8 @@ pub(in crate::client) struct BuildingMenu {
     screw_selecting_state: ScrewSelectingState,
 
     state: BuildingState,
+
+    link_selected: Option<(CommandHandle, u8)>,
 }
 
 impl BuildingMenu {
@@ -241,6 +254,8 @@ impl BuildingMenu {
             screw_selecting_state: ScrewSelectingState::SelectingA,
 
             state: Default::default(),
+
+            link_selected: None,
         }
     }
 
@@ -339,6 +354,7 @@ impl BuildingMenu {
                         BuildingState::Programming => {
                             self.handle_command_drag(x, y, windowing, texture_handler);
                             self.handle_command_select(x, y);
+                            self.handle_command_link_start(x, y);
                         }
                     }
                 }
@@ -350,10 +366,17 @@ impl BuildingMenu {
                     self.handle_pan(x, y, false);
                 }
 
-                if mouse_btn == MouseButton::Left {
-                    self.handle_part_drop(x, y, game_data, windowing, texture_handler)
-                        .await;
-                    self.handle_command_drop(x, y, windowing, texture_handler);
+                match self.state {
+                    BuildingState::Assembling => {
+                        if mouse_btn == MouseButton::Left {
+                            self.handle_part_drop(x, y, game_data, windowing, texture_handler)
+                                .await;
+                        }
+                    }
+                    BuildingState::Programming => {
+                        self.handle_command_drop(x, y, windowing, texture_handler);
+                        self.handle_command_link_end(x, y);
+                    }
                 }
             }
             Event::MouseWheel {
@@ -386,16 +409,9 @@ impl BuildingMenu {
         };
 
         self.robot.components.iter().try_for_each(|(id, comp)| {
-            let (mut world_x, mut world_y) = (comp.x, comp.y);
+            let (world_x, world_y) = (comp.x, comp.y);
 
-            if self.pan_button_down {
-                let (mouse_world_x, mouse_world_y) = self.to_world(mouse_x, mouse_y);
-
-                world_x += mouse_world_x - self.pan_button_down_x;
-                world_y += mouse_world_y - self.pan_button_down_y;
-            }
-
-            let (x, y) = self.to_screen(world_x, world_y);
+            let (x, y) = self.to_screen(world_x, world_y, (mouse_x, mouse_y));
 
             let selected = if let Some(selected) = self.selected_component_id
                 && selected == *id
@@ -428,16 +444,9 @@ impl BuildingMenu {
         })?;
 
         self.robot.screws.iter().try_for_each(|s| {
-            let (mut world_x, mut world_y) = (s.pos.x, s.pos.y);
+            let (world_x, world_y) = (s.pos.x, s.pos.y);
 
-            if self.pan_button_down {
-                let (mouse_world_x, mouse_world_y) = self.to_world(mouse_x, mouse_y);
-
-                world_x += mouse_world_x - self.pan_button_down_x;
-                world_y += mouse_world_y - self.pan_button_down_y;
-            }
-
-            let (x, y) = self.to_screen(world_x, world_y);
+            let (x, y) = self.to_screen(world_x, world_y, (mouse_x, mouse_y));
 
             render_component(
                 &mut windowing.canvas,
@@ -476,16 +485,9 @@ impl BuildingMenu {
                 } else {
                     false
                 };
-                let (mut world_x, mut world_y) = command.get_pos();
+                let (world_x, world_y) = command.get_pos();
 
-                if self.pan_button_down {
-                    let (mouse_world_x, mouse_world_y) = self.to_world(mouse_x, mouse_y);
-
-                    world_x += mouse_world_x - self.pan_button_down_x;
-                    world_y += mouse_world_y - self.pan_button_down_y;
-                }
-
-                let (x, y) = self.to_screen(world_x, world_y);
+                let (x, y) = self.to_screen(world_x, world_y, (mouse_x, mouse_y));
 
                 //            let selected = if let Some(selected) = self.selected_id
                 //                && selected == *id
@@ -503,15 +505,13 @@ impl BuildingMenu {
                 //                false
                 //            };
 
-                render_command(
+                command.render(
                     &mut windowing.canvas,
                     texture_handler,
-                    command.get_data(),
-                    x,
-                    y,
-                    0.0,
                     self.zoom,
+                    self,
                     selected,
+                    (mouse_x, mouse_y),
                 )?;
 
                 Ok::<(), String>(())
@@ -677,21 +677,11 @@ impl BuildingMenu {
 
         comps.into_iter().try_for_each(|shape| {
             for w in shape.windows(2) {
-                let mut a = (w[0].x, w[0].y);
-                let mut b = (w[1].x, w[1].y);
+                let a = (w[0].x, w[0].y);
+                let b = (w[1].x, w[1].y);
 
-                if self.pan_button_down {
-                    let (mouse_world_x, mouse_world_y) = self.to_world(mouse_x, mouse_y);
-
-                    a.0 += mouse_world_x - self.pan_button_down_x;
-                    a.1 += mouse_world_y - self.pan_button_down_y;
-
-                    b.0 += mouse_world_x - self.pan_button_down_x;
-                    b.1 += mouse_world_y - self.pan_button_down_y;
-                }
-
-                let (x1, y1) = self.to_screen(a.0, a.1);
-                let (x2, y2) = self.to_screen(b.0, b.1);
+                let (x1, y1) = self.to_screen(a.0, a.1, (mouse_x, mouse_y));
+                let (x2, y2) = self.to_screen(b.0, b.1, (mouse_x, mouse_y));
 
                 let a = Point::new(x1 as i32, y1 as i32);
                 let b = Point::new(x2 as i32, y2 as i32);
@@ -700,21 +690,11 @@ impl BuildingMenu {
             }
 
             if shape.len() >= 2 {
-                let mut a = (shape[0].x, shape[0].y);
-                let mut b = (shape.last().unwrap().x, shape.last().unwrap().y);
+                let a = (shape[0].x, shape[0].y);
+                let b = (shape.last().unwrap().x, shape.last().unwrap().y);
 
-                if self.pan_button_down {
-                    let (mouse_world_x, mouse_world_y) = self.to_world(mouse_x, mouse_y);
-
-                    a.0 += mouse_world_x - self.pan_button_down_x;
-                    a.1 += mouse_world_y - self.pan_button_down_y;
-
-                    b.0 += mouse_world_x - self.pan_button_down_x;
-                    b.1 += mouse_world_y - self.pan_button_down_y;
-                }
-
-                let (x1, y1) = self.to_screen(a.0, a.1);
-                let (x2, y2) = self.to_screen(b.0, b.1);
+                let (x1, y1) = self.to_screen(a.0, a.1, (mouse_x, mouse_y));
+                let (x2, y2) = self.to_screen(b.0, b.1, (mouse_x, mouse_y));
 
                 let a = Point::new(x1 as i32, y1 as i32);
                 let b = Point::new(x2 as i32, y2 as i32);
@@ -730,7 +710,7 @@ impl BuildingMenu {
             .iter()
             .try_for_each(|(_, command)| {
                 let pos = command.get_pos();
-                let (x, y) = self.to_screen(pos.0, pos.1);
+                let (x, y) = self.to_screen(pos.0, pos.1, (mouse_x, mouse_y));
                 let rect = Rect::new(x - 1, y - 1, 3, 3);
 
                 windowing.canvas.set_draw_color(Color::RGB(255, 0, 0));
@@ -741,7 +721,7 @@ impl BuildingMenu {
                     let radius = (constants::PROGRAMMING_LINK_SIZE / 2.0
                         * constants::PIXELS_PER_METER
                         * self.zoom) as i32;
-                    let (x, y) = self.to_screen(p.x + pos.0, p.y + pos.1);
+                    let (x, y) = self.to_screen(p.x + pos.0, p.y + pos.1, (mouse_x, mouse_y));
                     let rect =
                         Rect::new(x - radius, y - radius, radius as u32 * 2, radius as u32 * 2);
 
@@ -754,7 +734,7 @@ impl BuildingMenu {
                     let radius = (constants::PROGRAMMING_LINK_SIZE / 2.0
                         * constants::PIXELS_PER_METER
                         * self.zoom) as i32;
-                    let (x, y) = self.to_screen(p.x + pos.0, p.y + pos.1);
+                    let (x, y) = self.to_screen(p.x + pos.0, p.y + pos.1, (mouse_x, mouse_y));
                     let rect =
                         Rect::new(x - radius, y - radius, radius as u32 * 2, radius as u32 * 2);
 
@@ -784,21 +764,11 @@ impl BuildingMenu {
 
         comps.into_iter().try_for_each(|shape| {
             for w in shape.windows(2) {
-                let mut a = (w[0].x, w[0].y);
-                let mut b = (w[1].x, w[1].y);
+                let a = (w[0].x, w[0].y);
+                let b = (w[1].x, w[1].y);
 
-                if self.pan_button_down {
-                    let (mouse_world_x, mouse_world_y) = self.to_world(mouse_x, mouse_y);
-
-                    a.0 += mouse_world_x - self.pan_button_down_x;
-                    a.1 += mouse_world_y - self.pan_button_down_y;
-
-                    b.0 += mouse_world_x - self.pan_button_down_x;
-                    b.1 += mouse_world_y - self.pan_button_down_y;
-                }
-
-                let (x1, y1) = self.to_screen(a.0, a.1);
-                let (x2, y2) = self.to_screen(b.0, b.1);
+                let (x1, y1) = self.to_screen(a.0, a.1, (mouse_x, mouse_y));
+                let (x2, y2) = self.to_screen(b.0, b.1, (mouse_x, mouse_y));
 
                 let a = Point::new(x1 as i32, y1 as i32);
                 let b = Point::new(x2 as i32, y2 as i32);
@@ -807,21 +777,11 @@ impl BuildingMenu {
             }
 
             if shape.len() >= 2 {
-                let mut a = (shape[0].x, shape[0].y);
-                let mut b = (shape.last().unwrap().x, shape.last().unwrap().y);
+                let a = (shape[0].x, shape[0].y);
+                let b = (shape.last().unwrap().x, shape.last().unwrap().y);
 
-                if self.pan_button_down {
-                    let (mouse_world_x, mouse_world_y) = self.to_world(mouse_x, mouse_y);
-
-                    a.0 += mouse_world_x - self.pan_button_down_x;
-                    a.1 += mouse_world_y - self.pan_button_down_y;
-
-                    b.0 += mouse_world_x - self.pan_button_down_x;
-                    b.1 += mouse_world_y - self.pan_button_down_y;
-                }
-
-                let (x1, y1) = self.to_screen(a.0, a.1);
-                let (x2, y2) = self.to_screen(b.0, b.1);
+                let (x1, y1) = self.to_screen(a.0, a.1, (mouse_x, mouse_y));
+                let (x2, y2) = self.to_screen(b.0, b.1, (mouse_x, mouse_y));
 
                 let a = Point::new(x1 as i32, y1 as i32);
                 let b = Point::new(x2 as i32, y2 as i32);
@@ -1210,6 +1170,67 @@ impl BuildingMenu {
         }
     }
 
+    fn handle_command_link_start(&mut self, mouse_x: i32, mouse_y: i32) {
+        let (world_x, world_y) = self.to_world(mouse_x, mouse_y);
+
+        self.link_selected = None;
+
+        'outer: for (id, command) in self.robot.commands.get_commands() {
+            let outputs = constants::get_command_link_positions(command.get_data())[1];
+
+            for i in 0..outputs.len() {
+                let link = outputs[i];
+
+                let x = link.x + command.get_pos().0 - constants::PROGRAMMING_LINK_SIZE / 2.0;
+                let y = link.y + command.get_pos().1 - constants::PROGRAMMING_LINK_SIZE / 2.0;
+
+                if world_x > x
+                    && world_y > y
+                    && world_x < x + constants::PROGRAMMING_LINK_SIZE
+                    && world_y < y + constants::PROGRAMMING_LINK_SIZE
+                {
+                    self.link_selected = Some((CommandHandle(*id), i as u8));
+                    break 'outer;
+                }
+            }
+        }
+    }
+
+    fn handle_command_link_end(&mut self, mouse_x: i32, mouse_y: i32) {
+        let Some(link_selected) = self.link_selected else {
+            return;
+        };
+
+        let (world_x, world_y) = self.to_world(mouse_x, mouse_y);
+        let mut input_link: Option<(CommandHandle, u8)> = None;
+
+        'outer: for (id, command) in self.robot.commands.get_commands_mut() {
+            let inputs = constants::get_command_link_positions(command.get_data())[0];
+
+            for i in 0..inputs.len() {
+                let link = inputs[i];
+
+                let x = link.x + command.get_pos().0 - constants::PROGRAMMING_LINK_SIZE / 2.0;
+                let y = link.y + command.get_pos().1 - constants::PROGRAMMING_LINK_SIZE / 2.0;
+
+                if world_x > x
+                    && world_y > y
+                    && world_x < x + constants::PROGRAMMING_LINK_SIZE
+                    && world_y < y + constants::PROGRAMMING_LINK_SIZE
+                {
+                    input_link = Some((CommandHandle(*id), i as u8));
+                    break 'outer;
+                }
+            }
+        }
+
+        if let Some(link) = input_link {
+            if let Some(command) = self.robot.get_command_mut(link_selected.0) {
+                command.connect(link.0, link_selected.1, link.1);
+            }
+        }
+    }
+
     fn handle_part_scrolling(
         &mut self,
         mouse_x: i32,
@@ -1279,10 +1300,28 @@ impl BuildingMenu {
         )
     }
 
-    pub(in crate::client) fn to_screen(&self, x: f32, y: f32) -> (i32, i32) {
+    pub(in crate::client) fn to_screen(
+        &self,
+        mut x: f32,
+        mut y: f32,
+        mp: (i32, i32),
+    ) -> (i32, i32) {
+        let (mouse_x, mouse_y) = mp;
+
+        if self.pan_button_down {
+            let (mouse_world_x, mouse_world_y) = self.to_world(mouse_x, mouse_y);
+
+            x += mouse_world_x - self.pan_button_down_x;
+            y += mouse_world_y - self.pan_button_down_y;
+        }
+
         (
             ((x - self.dx) * self.zoom * constants::PIXELS_PER_METER) as i32,
             ((y - self.dy) * self.zoom * constants::PIXELS_PER_METER) as i32,
         )
+    }
+
+    pub fn get_robot(&self) -> &Robot {
+        &self.robot
     }
 }

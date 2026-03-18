@@ -1,7 +1,8 @@
 use crate::client::programming::CommandData;
-use crate::game::component::ComponentKind;
+use crate::game::component::{ComponentActivationState, ComponentKind};
 use crate::texture_handler::TextureId;
 use rapier2d::math::Point;
+use sdl2::keyboard::Keycode;
 
 pub const SERVER_CONNECT_TIMEOUT_MS: u64 = 5000;
 pub const PHYSICS_STEPS: usize = 10;
@@ -238,206 +239,241 @@ pub mod command_shapes {
     use rapier2d::prelude::nalgebra;
 
     pub const ACOS: &[&[Point<f32>]] = &[&[
-        point![-17.0, -11.0],
-        point![17.0, -11.0],
-        point![17.0, 11.0],
-        point![-17.0, 11.0],
+        point![-3.5, -2.3],
+        point![3.5, -2.3],
+        point![3.5, 2.3],
+        point![-3.5, 2.3],
     ]];
 
     pub const ADD: &[&[Point<f32>]] = &[&[
-        point![-11.0, -11.0],
-        point![11.0, -11.0],
-        point![11.0, 11.0],
-        point![-11.0, 11.0],
+        point![-2.3, -2.3],
+        point![2.3, -2.3],
+        point![2.3, 2.3],
+        point![-2.3, 2.3],
     ]];
 
     pub const AND: &[&[Point<f32>]] = &[&[
-        point![-25.0, -11.0],
-        point![17.0, -11.0],
-        point![26.0, -3.0],
-        point![26.0, 3.0],
-        point![17.0, 11.0],
-        point![-25.0, 11.0],
+        point![-5.0, -2.3],
+        point![3.3, -2.3],
+        point![5.0, -0.75],
+        point![5.0, 0.75],
+        point![3.4, 2.3],
+        point![-5.0, 2.3],
     ]];
 
     pub const ASIN: &[&[Point<f32>]] = &[&[
-        point![-17.0, -11.0],
-        point![17.0, -11.0],
-        point![17.0, 11.0],
-        point![-17.0, 11.0],
+        point![-3.5, -2.3],
+        point![3.5, -2.3],
+        point![3.5, 2.3],
+        point![-3.5, 2.3],
     ]];
 
     pub const ATAN: &[&[Point<f32>]] = &[&[
-        point![-17.0, -11.0],
-        point![17.0, -11.0],
-        point![17.0, 11.0],
-        point![-17.0, 11.0],
+        point![-3.5, -2.3],
+        point![3.5, -2.3],
+        point![3.5, 2.3],
+        point![-3.5, 2.3],
     ]];
 
     pub const ATAN2: &[&[Point<f32>]] = &[&[
-        point![-21.0, -11.0],
-        point![21.0, -11.0],
-        point![21.0, 11.0],
-        point![-21.0, 11.0],
+        point![-4.2, -2.3],
+        point![4.2, -2.3],
+        point![4.2, 2.3],
+        point![-4.2, 2.3],
     ]];
 
     pub const CONST: &[&[Point<f32>]] = &[&[
-        point![-13.0, -11.0],
-        point![10.0, -11.0],
-        point![10.0, 11.0],
-        point![-13.0, 11.0],
+        point![-2.6, -2.3],
+        point![2.0, -2.3],
+        point![2.0, 2.3],
+        point![-2.6, 2.3],
     ]];
 
     pub const COS: &[&[Point<f32>]] = &[&[
-        point![-14.0, -11.0],
-        point![14.0, -11.0],
-        point![14.0, 11.0],
-        point![-14.0, 11.0],
+        point![-2.8, -2.3],
+        point![2.8, -2.3],
+        point![2.8, 2.3],
+        point![-2.8, 2.3],
     ]];
 
     pub const DIV: &[&[Point<f32>]] = &[&[
-        point![-11.0, -11.0],
-        point![11.0, -11.0],
-        point![11.0, 11.0],
-        point![-11.0, 11.0],
+        point![-2.3, -2.3],
+        point![2.3, -2.3],
+        point![2.3, 2.3],
+        point![-2.3, 2.3],
     ]];
 
     pub const FALSE: &[&[Point<f32>]] = &[&[
-        point![-13.0, -10.0],
-        point![10.0, -10.0],
-        point![10.0, 10.0],
-        point![-13.0, 10.0],
+        point![-2.6, -2.3],
+        point![2.0, -2.3],
+        point![2.0, 2.3],
+        point![-2.6, 2.3],
     ]];
 
     pub const GREATER_THAN: &[&[Point<f32>]] = &[&[
-        point![-11.0, -11.0],
-        point![11.0, -11.0],
-        point![11.0, 11.0],
-        point![-11.0, 11.0],
+        point![-2.3, -2.3],
+        point![2.3, -2.3],
+        point![2.3, 2.3],
+        point![-2.3, 2.3],
+        
     ]];
 
     pub const IF: &[&[Point<f32>]] =
-        &[&[point![-21.0, 0.0], point![21.0, -11.0], point![21.0, 11.0]]];
+        &[&[point![4.75, -2.25], point![-4.25, 0.0], point![4.75, 2.25]]];
 
     pub const LESS_THAN: &[&[Point<f32>]] = &[&[
-        point![-11.0, -11.0],
-        point![11.0, -11.0],
-        point![11.0, 11.0],
-        point![-11.0, 11.0],
+        point![-2.3, -2.3],
+        point![2.3, -2.3],
+        point![2.3, 2.3],
+        point![-2.3, 2.3],
     ]];
 
     pub const MUL: &[&[Point<f32>]] = &[&[
-        point![-11.0, -11.0],
-        point![11.0, -11.0],
-        point![11.0, 11.0],
-        point![-11.0, 11.0],
+        point![-2.3, -2.3],
+        point![2.3, -2.3],
+        point![2.3, 2.3],
+        point![-2.3, 2.3],
     ]];
 
     pub const NEG: &[&[Point<f32>]] = &[&[
-        point![-11.0, -11.0],
-        point![11.0, -11.0],
-        point![11.0, 11.0],
-        point![-11.0, 11.0],
+        point![-2.3, -2.3],
+        point![2.3, -2.3],
+        point![2.3, 2.3],
+        point![-2.3, 2.3],
     ]];
 
     pub const NOT: &[&[Point<f32>]] =
-        &[&[point![-21.0, -11.0], point![21.0, 0.0], point![-21.0, 11.0]]];
+        &[&[point![-4.75, -2.25], point![4.25, 0.0], point![-4.75, 2.25]]];
 
     pub const ONKEYDOWN: &[&[Point<f32>]] = &[&[
-        point![-36.0, -11.0],
-        point![33.0, -11.0],
-        point![33.0, 11.0],
-        point![-36.0, 11.0],
+        point![-7.3, -2.3],
+        point![6.70, -2.3],
+        point![6.7, 2.3],
+        point![-7.3, 2.3],
     ]];
 
     pub const ONKEYUP: &[&[Point<f32>]] = &[&[
-        point![-36.0, -11.0],
-        point![33.0, -11.0],
-        point![33.0, 11.0],
-        point![-36.0, 11.0],
+        point![-5.9, -2.3],
+        point![5.3, -2.3],
+        point![5.3, 2.3],
+        point![-5.9, 2.3],
     ]];
 
     pub const OR: &[&[Point<f32>]] = &[&[
-        point![-28.0, -11.0],
-        point![17.0, -11.0],
-        point![25.0, -3.0],
-        point![25.0, 3.0],
-        point![17.0, -11.0],
-        point![-28.0, -11.0],
-        point![-22.0, 0.0],
+        point![-5.6, -2.3],
+        point![3.4, -2.3],
+        point![5.0, -0.75],
+        point![5.0, 0.75],
+        point![3.4, 2.3],
+        point![-5.4, 2.3],
+        point![-4.4, 0.0],
     ]];
 
     pub const POW: &[&[Point<f32>]] = &[&[
-        point![-11.0, -11.0],
-        point![11.0, -11.0],
-        point![11.0, 11.0],
-        point![-11.0, 11.0],
+        point![-2.3, -2.3],
+        point![2.3, -2.3],
+        point![2.3, 2.3],
+        point![-2.3, 2.3],
     ]];
 
     pub const SETSTATE: &[&[Point<f32>]] = &[&[
-        point![-30.0, -11.0],
-        point![33.0, -11.0],
-        point![33.0, 11.0],
-        point![-30.0, 11.0],
+        point![-6.0, -2.3],
+        point![6.6, -2.3],
+        point![6.6, 2.3],
+        point![-6.0, 2.3],
     ]];
 
     pub const SIN: &[&[Point<f32>]] = &[&[
-        point![-14.0, -11.0],
-        point![14.0, -11.0],
-        point![14.0, 11.0],
-        point![-14.0, 11.0],
+        point![-2.8, -2.3],
+        point![2.8, -2.3],
+        point![2.8, 2.3],
+        point![-2.8, 2.3],
     ]];
 
     pub const SQRT: &[&[Point<f32>]] = &[&[
-        point![-11.0, -11.0],
-        point![11.0, -11.0],
-        point![11.0, 11.0],
-        point![-11.0, 11.0],
+        point![-2.3, -2.3],
+        point![2.3, -2.3],
+        point![2.3, 2.3],
+        point![-2.3, 2.3],
     ]];
 
     pub const SUB: &[&[Point<f32>]] = &[&[
-        point![-11.0, -11.0],
-        point![11.0, -11.0],
-        point![11.0, 11.0],
-        point![-11.0, 11.0],
+        point![-2.3, -2.3],
+        point![2.3, -2.3],
+        point![2.3, 2.3],
+        point![-2.3, 2.3],
     ]];
 
     pub const TAN: &[&[Point<f32>]] = &[&[
-        point![-14.0, -11.0],
-        point![14.0, -11.0],
-        point![14.0, 11.0],
-        point![-14.0, 11.0],
+        point![-2.8, -2.3],
+        point![2.8, -2.3],
+        point![2.8, 2.3],
+        point![-2.8, 2.3],
     ]];
 
     pub const TERNARY: &[&[Point<f32>]] = &[&[
-        point![-11.0, -11.0],
-        point![11.0, -11.0],
-        point![11.0, 11.0],
-        point![-11.0, 11.0],
+        point![-2.3, -2.3],
+        point![2.3, -2.3],
+        point![2.3, 2.3],
+        point![-2.3, 2.3],
     ]];
 
     pub const TRUE: &[&[Point<f32>]] = &[&[
-        point![-13.0, -11.0],
-        point![10.0, -11.0],
-        point![10.0, 11.0],
-        point![-13.0, 11.0],
+        point![-2.6, -2.3],
+        point![2.0, -2.3],
+        point![2.0, 2.3],
+        point![-2.6, 2.3],
     ]];
 
     pub const XOR: &[&[Point<f32>]] = &[&[
-        point![-28.0, -11.0],
-        point![17.0, -11.0],
-        point![25.0, -3.0],
-        point![25.0, 3.0],
-        point![17.0, -11.0],
-        point![-28.0, -11.0],
-        point![-22.0, 0.0],
+        point![-5.6, -2.3],
+        point![3.4, -2.3],
+        point![5.0, -0.75],
+        point![5.0, 0.75],
+        point![3.4, 2.3],
+        point![-5.4, 2.3],
+        point![-4.4, 0.0],
     ]];
 }
 
+pub const COMMANDS_SET: &[CommandData] = &[
+    CommandData::OnKeyDown { key: Keycode::A },
+    CommandData::OnKeyUp { key: Keycode::A },
+    CommandData::SetState {
+        comps: vec![],
+        state: ComponentActivationState::None,
+    },
+    CommandData::Const { val: 0.0 },
+    CommandData::True,
+    CommandData::False,
+    CommandData::Add,
+    CommandData::Sub,
+    CommandData::Neg,
+    CommandData::Mul,
+    CommandData::Div,
+    CommandData::Sqrt,
+    CommandData::Pow,
+    CommandData::Sin,
+    CommandData::Cos,
+    CommandData::Tan,
+    CommandData::Asin,
+    CommandData::Acos,
+    CommandData::Atan,
+    CommandData::Atan2,
+    CommandData::LessThan,
+    CommandData::GreaterThan,
+    CommandData::And,
+    CommandData::Or,
+    CommandData::Xor,
+    CommandData::Not,
+    CommandData::Ternary,
+    CommandData::If,
+];
+
 pub const fn get_command_shape(data: &CommandData) -> &'static [&'static [Point<f32>]] {
     match data {
-        CommandData::OnKeyDown { .. } => command_shapes::ONKEYUP,
-        CommandData::OnKeyUp { .. } => command_shapes::ONKEYDOWN,
+        CommandData::OnKeyDown { .. } => command_shapes::ONKEYDOWN,
+        CommandData::OnKeyUp { .. } => command_shapes::ONKEYUP,
         CommandData::SetState { .. } => command_shapes::SETSTATE,
         CommandData::Const { .. } => command_shapes::CONST,
         CommandData::True => command_shapes::TRUE,

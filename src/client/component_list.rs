@@ -1,7 +1,7 @@
 use crate::game::component::{ComponentKind, render_component};
 use crate::texture_handler::TextureHandler;
 use crate::{constants, ticks};
-use rand::RngExt;
+use rand::Rng;
 use sdl2::pixels::Color;
 use sdl2::rect::Rect;
 use sdl2::render::Canvas;

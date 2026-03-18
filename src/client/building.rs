@@ -6,13 +6,17 @@ use crate::polygon::Vec2;
 use crate::texture_handler::{TextureHandler, TextureId};
 use crate::windowing::Windowing;
 use crate::{constants, polygon};
+use rapier2d::na::point;
+use rapier2d::prelude::nalgebra;
 use sdl2::event::Event;
 use sdl2::keyboard::Keycode;
-use sdl2::mouse::MouseButton;
+use sdl2::mouse::{MouseButton, MouseState};
 use sdl2::pixels::Color;
 use sdl2::rect::{Point, Rect};
 use std::collections::HashMap;
 use std::f32::consts::PI;
+
+const A: rapier2d::prelude::nalgebra::Point<f32, 2> = point![0.0, 0.0];
 
 #[derive(Clone)]
 pub struct RobotComponent {
@@ -122,7 +126,7 @@ impl Robot {
 
         let pst = self.screws.len();
 
-        let screw_count = pst - pre;
+        let screw_count = pst as i32 - pre as i32;
 
         if screw_count > 0 {
             let mut building_components = game_data.building_components.write().await;
@@ -161,6 +165,8 @@ pub(in crate::client) struct BuildingMenu {
     /// Target scroll in px
     pub(in crate::client) target_scroll: i32,
 
+    last_pos: (f32, f32),
+
     pan_button_down_x: f32,
     pan_button_down_y: f32,
     pan_button_down: bool,
@@ -176,8 +182,9 @@ pub(in crate::client) struct BuildingMenu {
 
     robot: Robot,
 
-    /// Part kind current being dragged
+    /// Part/command king current being dragged
     part_selected: Option<ComponentKind>,
+    command_selected: Option<CommandData>,
 
     /// Rotation of part currently being dragged
     part_rot: f32,
@@ -201,6 +208,8 @@ pub(in crate::client) struct BuildingMenu {
 impl BuildingMenu {
     pub(in crate::client) fn new() -> Self {
         BuildingMenu {
+            last_pos: (0.0, 0.0),
+
             scroll: 0,
             target_scroll: 0,
 
@@ -217,6 +226,8 @@ impl BuildingMenu {
             robot: Robot::new(),
 
             part_selected: None,
+            command_selected: None,
+
             part_rot: 0.0,
 
             render_hitboxes: true,
@@ -275,7 +286,7 @@ impl BuildingMenu {
                     let state_tex = texture_handler.get_texture(TextureId::BuildingStateButton);
 
                     let src = Rect::new(0, 0, 63, 25);
-                    let dst = Rect::new(0, 20 + rect.height() as i32, src.width(), src.height());
+                    let dst = Rect::new(0, 20 + rect.height() as i32, state_tex.1.0, state_tex.1.1);
                     windowing.canvas.copy(state_tex.0, Some(src), Some(dst))?;
                 }
             }
@@ -285,6 +296,9 @@ impl BuildingMenu {
                 if self.render_hitboxes {
                     self.render_command_hitboxes(windowing)?;
                 }
+
+                self.render_commands_list(windowing, texture_handler)?;
+                self.render_dragging_command(windowing, texture_handler)?;
 
                 let done_size = texture_handler.get_texture(TextureId::DoneButton).1;
 
@@ -318,15 +332,17 @@ impl BuildingMenu {
                     self.handle_pan(x, y, true);
                 }
 
-                if mouse_btn == MouseButton::Middle {
-                    self.robot.commands.add_command(Command::new(Vec2 { x: 0.0, y: 0.0 }, CommandData::If));
-                }
-
                 if mouse_btn == MouseButton::Left {
                     self.handle_part_drag(x, y, &game_data, windowing, texture_handler)
                         .await;
+                    self.handle_command_drag(x, y, windowing, texture_handler);
                     self.handle_part_select(x, y);
                     self.handle_ui(x, y, game_data, texture_handler).await;
+
+                    let state = MouseState::new(&windowing.event_pump);
+                    let (mx, my) = self.to_world(state.x(), state.y());
+                    println!("dp: {}, {}", mx - self.last_pos.0, my - self.last_pos.1);
+                    self.last_pos = (mx, my);
                 }
             }
             Event::MouseButtonUp {
@@ -339,6 +355,7 @@ impl BuildingMenu {
                 if mouse_btn == MouseButton::Left {
                     self.handle_part_drop(x, y, game_data, windowing, texture_handler)
                         .await;
+                    self.handle_command_drop(x, y, windowing, texture_handler);
                 }
             }
             Event::MouseWheel {
@@ -449,47 +466,51 @@ impl BuildingMenu {
             (pos.x(), pos.y())
         };
 
-        self.robot.commands.get_commands().iter().try_for_each(|(_id, command)| {
-            let (mut world_x, mut world_y) = command.get_pos();
+        self.robot
+            .commands
+            .get_commands()
+            .iter()
+            .try_for_each(|(_id, command)| {
+                let (mut world_x, mut world_y) = command.get_pos();
 
-            if self.pan_button_down {
-                let (mouse_world_x, mouse_world_y) = self.to_world(mouse_x, mouse_y);
+                if self.pan_button_down {
+                    let (mouse_world_x, mouse_world_y) = self.to_world(mouse_x, mouse_y);
 
-                world_x += mouse_world_x - self.pan_button_down_x;
-                world_y += mouse_world_y - self.pan_button_down_y;
-            }
+                    world_x += mouse_world_x - self.pan_button_down_x;
+                    world_y += mouse_world_y - self.pan_button_down_y;
+                }
 
-            let (x, y) = self.to_screen(world_x, world_y);
+                let (x, y) = self.to_screen(world_x, world_y);
 
-//            let selected = if let Some(selected) = self.selected_id
-//                && selected == *id
-//            {
-//                true
-//            } else if let Some(screw_part_a) = self.screw_part_a
-//                && screw_part_a.0 == *id
-//            {
-//                true
-//            } else if let Some(screw_part_b) = self.screw_part_b
-//                && screw_part_b.0 == *id
-//            {
-//                true
-//            } else {
-//                false
-//            };
+                //            let selected = if let Some(selected) = self.selected_id
+                //                && selected == *id
+                //            {
+                //                true
+                //            } else if let Some(screw_part_a) = self.screw_part_a
+                //                && screw_part_a.0 == *id
+                //            {
+                //                true
+                //            } else if let Some(screw_part_b) = self.screw_part_b
+                //                && screw_part_b.0 == *id
+                //            {
+                //                true
+                //            } else {
+                //                false
+                //            };
 
-            render_command(
-                &mut windowing.canvas,
-                texture_handler,
-                command.get_data(),
-                x,
-                y,
-                0.0,
-                self.zoom,
-                false,
-            )?;
+                render_command(
+                    &mut windowing.canvas,
+                    texture_handler,
+                    command.get_data(),
+                    x,
+                    y,
+                    0.0,
+                    self.zoom,
+                    false,
+                )?;
 
-            Ok::<(), String>(())
-        })?;
+                Ok::<(), String>(())
+            })?;
 
         Ok(())
     }
@@ -567,13 +588,80 @@ impl BuildingMenu {
         Ok(())
     }
 
+    fn render_commands_list(
+        &self,
+        windowing: &mut Windowing,
+        texture_handler: &TextureHandler,
+    ) -> Result<(), String> {
+        let (window_w, _window_h) = windowing.canvas.window().size();
+
+        let box_tex = texture_handler.get_texture(TextureId::BuildingComponentBox);
+
+        let x = window_w as i32 - box_tex.1.0 as i32;
+
+        constants::COMMANDS_SET
+            .iter()
+            .enumerate()
+            .try_for_each(|(i, data)| {
+                let y = i as i32 * box_tex.1.1 as i32 + self.scroll;
+
+                let rect = Rect::new(x, y, box_tex.1.1, box_tex.1.1);
+                windowing.canvas.copy(&box_tex.0, None, Some(rect))?;
+
+                let tex = texture_handler.get_texture(constants::get_command_texture(data));
+                let rect = Rect::new(
+                    x + (box_tex.1.0 as i32 - tex.1.0 as i32) / 2,
+                    y + (box_tex.1.1 as i32 - tex.1.1 as i32) / 2,
+                    tex.1.0,
+                    tex.1.1,
+                );
+
+                windowing.canvas.copy(&tex.0, None, Some(rect))?;
+
+                Ok::<(), String>(())
+            })?;
+        Ok(())
+    }
+
+    fn render_dragging_command(
+        &self,
+        windowing: &mut Windowing,
+        texture_handler: &TextureHandler,
+    ) -> Result<(), String> {
+        if let Some(data) = self.command_selected.as_ref() {
+            let mouse_state = windowing.event_pump.mouse_state();
+            render_command(
+                &mut windowing.canvas,
+                texture_handler,
+                data,
+                mouse_state.x(),
+                mouse_state.y(),
+                self.part_rot,
+                self.zoom,
+                false,
+            )?;
+        }
+
+        Ok(())
+    }
+
     fn render_command_hitboxes(&self, windowing: &mut Windowing) -> Result<(), String> {
         let comps = self
             .robot
             .commands
             .get_commands()
             .iter()
-            .map(|(_, command)| get_command_shape(command.get_data()))
+            .map(|(_, command)| {
+                let shape = get_command_shape(command.get_data());
+                shape
+                    .iter()
+                    .map(|p| {
+                        p.iter()
+                            .map(|s| point![s.x + command.pos.x, s.y + command.pos.y])
+                            .collect::<Vec<_>>()
+                    })
+                    .collect::<Vec<_>>()
+            })
             .flatten()
             .collect::<Vec<_>>();
 
@@ -597,13 +685,8 @@ impl BuildingMenu {
                     b.1 += mouse_world_y - self.pan_button_down_y;
                 }
 
-                let (mut x1, mut y1) = self.to_screen(a.0, a.1);
-                let (mut x2, mut y2) = self.to_screen(b.0, b.1);
-
-                x1 /= constants::PIXELS_PER_METER as i32;
-                x2 /= constants::PIXELS_PER_METER as i32;
-                y1 /= constants::PIXELS_PER_METER as i32;
-                y2 /= constants::PIXELS_PER_METER as i32;
+                let (x1, y1) = self.to_screen(a.0, a.1);
+                let (x2, y2) = self.to_screen(b.0, b.1);
 
                 let a = Point::new(x1 as i32, y1 as i32);
                 let b = Point::new(x2 as i32, y2 as i32);
@@ -612,8 +695,21 @@ impl BuildingMenu {
             }
 
             if shape.len() >= 2 {
-                let (x1, y1) = self.to_screen(shape[0].x, shape[0].y);
-                let (x2, y2) = self.to_screen(shape.last().unwrap().x, shape.last().unwrap().y);
+                let mut a = (shape[0].x, shape[0].y);
+                let mut b = (shape.last().unwrap().x, shape.last().unwrap().y);
+
+                if self.pan_button_down {
+                    let (mouse_world_x, mouse_world_y) = self.to_world(mouse_x, mouse_y);
+
+                    a.0 += mouse_world_x - self.pan_button_down_x;
+                    a.1 += mouse_world_y - self.pan_button_down_y;
+
+                    b.0 += mouse_world_x - self.pan_button_down_x;
+                    b.1 += mouse_world_y - self.pan_button_down_y;
+                }
+
+                let (x1, y1) = self.to_screen(a.0, a.1);
+                let (x2, y2) = self.to_screen(b.0, b.1);
 
                 let a = Point::new(x1 as i32, y1 as i32);
                 let b = Point::new(x2 as i32, y2 as i32);
@@ -663,8 +759,21 @@ impl BuildingMenu {
             }
 
             if shape.len() >= 2 {
-                let (x1, y1) = self.to_screen(shape[0].x, shape[0].y);
-                let (x2, y2) = self.to_screen(shape.last().unwrap().x, shape.last().unwrap().y);
+                let mut a = (shape[0].x, shape[0].y);
+                let mut b = (shape.last().unwrap().x, shape.last().unwrap().y);
+
+                if self.pan_button_down {
+                    let (mouse_world_x, mouse_world_y) = self.to_world(mouse_x, mouse_y);
+
+                    a.0 += mouse_world_x - self.pan_button_down_x;
+                    a.1 += mouse_world_y - self.pan_button_down_y;
+
+                    b.0 += mouse_world_x - self.pan_button_down_x;
+                    b.1 += mouse_world_y - self.pan_button_down_y;
+                }
+
+                let (x1, y1) = self.to_screen(a.0, a.1);
+                let (x2, y2) = self.to_screen(b.0, b.1);
 
                 let a = Point::new(x1 as i32, y1 as i32);
                 let b = Point::new(x2 as i32, y2 as i32);
@@ -822,6 +931,35 @@ impl BuildingMenu {
         }
     }
 
+    fn handle_command_drag(
+        &mut self,
+        mouse_x: i32,
+        mouse_y: i32,
+        windowing: &Windowing,
+        texture_handler: &TextureHandler,
+    ) {
+        let (window_w, _window_h) = windowing.canvas.window().size();
+
+        let box_tex = texture_handler.get_texture(TextureId::BuildingComponentBox);
+
+        let x = window_w as i32 - box_tex.1.0 as i32;
+
+        if mouse_x > x {
+            constants::COMMANDS_SET
+                .iter()
+                .enumerate()
+                .for_each(|(i, data)| {
+                    let y = i as i32 * box_tex.1.1 as i32 + self.scroll;
+
+                    let rect = Rect::new(x, y, box_tex.1.0, box_tex.1.1);
+
+                    if rect.contains_point(Point::new(mouse_x, mouse_y)) {
+                        self.command_selected = Some(data.clone());
+                    }
+                });
+        }
+    }
+
     fn handle_part_select(&mut self, mouse_x: i32, mouse_y: i32) {
         let (x, y) = self.to_world(mouse_x, mouse_y);
         let mouse_pos = rapier2d::math::Point::new(x, y);
@@ -859,7 +997,12 @@ impl BuildingMenu {
         let state_size = texture_handler
             .get_texture(TextureId::BuildingStateButton)
             .1;
-        let rect = Rect::new(10, 20 + rect.height() as i32, state_size.0, state_size.1);
+        let rect = Rect::new(
+            10,
+            20 + rect.height() as i32,
+            state_size.0,
+            state_size.1 / 2,
+        );
         if rect.contains_point(ml) {
             self.state = match self.state {
                 BuildingState::Assembling => BuildingState::Programming,
@@ -955,6 +1098,30 @@ impl BuildingMenu {
 
                 self.part_rot = 0.0;
             }
+        }
+    }
+
+    fn handle_command_drop(
+        &mut self,
+        mouse_x: i32,
+        mouse_y: i32,
+        windowing: &Windowing,
+        texture_handler: &TextureHandler<'_>,
+    ) {
+        let Some(data) = self.command_selected.take() else {
+            return;
+        };
+
+        let (window_w, _window_h) = windowing.canvas.window().size();
+
+        let box_tex = texture_handler.get_texture(TextureId::BuildingComponentBox);
+
+        let x = window_w as i32 - box_tex.1.0 as i32;
+
+        if mouse_x < x {
+            let (x, y) = self.to_world(mouse_x, mouse_y);
+            self.robot.add_command(Command::new(Vec2 { x, y }, data));
+            self.command_selected = None;
         }
     }
 

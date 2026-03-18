@@ -1,4 +1,4 @@
-use rand::RngExt;
+use rand::Rng;
 
 use crate::client::component_list::ComponentListItem;
 use crate::constants;

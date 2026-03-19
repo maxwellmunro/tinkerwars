@@ -21,7 +21,7 @@ use crate::{
     windowing::Windowing,
 };
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub struct CommandHandle(pub u64);
 
 #[derive(Clone, Debug)]
@@ -110,8 +110,37 @@ impl CommandSet {
         self.commands.get_mut(&handle.0)
     }
 
-    pub fn remove(&mut self, handle: CommandHandle) -> Option<Command> {
-        self.commands.remove(&handle.0)
+    pub fn remove(&mut self, to_remove: CommandHandle) -> Option<Command> {
+        let mut outputs_to_remove = vec![];
+
+        self.commands.iter_mut().for_each(|(command_id, command)| {
+            command
+                .outputs
+                .iter()
+                .enumerate()
+                .for_each(|(output_id, c)| {
+                    c.iter().for_each(|(handle, input_id)| {
+                        if *handle == to_remove {
+                            outputs_to_remove.push((
+                                CommandHandle(*command_id),
+                                output_id as u64,
+                                *input_id as u64,
+                            ));
+                        }
+                    })
+                });
+        });
+
+        outputs_to_remove.iter().for_each(|(handle, o, i)| {
+            if let Some(command) = self.commands.get_mut(&handle.0) {
+                command.outputs[*o as usize].remove(*i as usize);
+                println!("Removed command at {} {} {}", handle.0, o, i);
+            } else {
+                println!("Failed to remove command at {} {} {}", handle.0, o, i);
+            }
+        });
+
+        self.commands.remove(&to_remove.0)
     }
 
     pub fn get_commands(&self) -> &HashMap<u64, Command> {

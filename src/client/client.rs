@@ -90,7 +90,7 @@ impl<'ttf> Client<'ttf> {
 
     async fn tick(&mut self, dt: f32) {
         if *self.game.state.read().await == State::BuildingMenu {
-            self.building_menu.tick(dt);
+            self.building_menu.tick(dt, &self.windowing);
         }
 
         self.world.tick(dt);

@@ -388,6 +388,10 @@ impl Command {
         }
     }
 
+    pub(in crate::client) fn move_to(&mut self, x: f32, y: f32) {
+        self.pos = Vec2 { x, y };
+    }
+
     pub(in crate::client) fn get_data(&self) -> &CommandData {
         &self.data
     }

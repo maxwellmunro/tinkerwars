@@ -10,7 +10,7 @@ use rapier2d::na::point;
 use rapier2d::prelude::nalgebra;
 use sdl2::event::Event;
 use sdl2::keyboard::Keycode;
-use sdl2::mouse::MouseButton;
+use sdl2::mouse::{MouseButton, MouseState};
 use sdl2::pixels::Color;
 use sdl2::rect::{Point, Rect};
 use std::collections::HashMap;
@@ -213,6 +213,8 @@ pub(in crate::client) struct BuildingMenu {
     state: BuildingState,
 
     link_selected: Option<(CommandHandle, u8)>,
+
+    left_down: bool,
 }
 
 impl BuildingMenu {
@@ -256,16 +258,29 @@ impl BuildingMenu {
             state: Default::default(),
 
             link_selected: None,
+
+            left_down: false,
         }
     }
 
-    pub(in crate::client) fn tick(&mut self, dt: f32) {
+    pub(in crate::client) fn tick(&mut self, dt: f32, windowing: &Windowing) {
         let d_scroll = self.target_scroll - self.scroll;
         if d_scroll.abs() > 0 {
             let sign = d_scroll / d_scroll.abs();
             let mag = (d_scroll as f32 * dt * 10.0).abs().max(1.0);
 
             self.scroll += sign * mag as i32;
+        }
+
+        let state = MouseState::new(&windowing.event_pump);
+        let (x, y) = self.to_world(state.x(), state.y());
+
+        if self.left_down {
+            if let Some(id) = self.selected_command_id {
+                if let Some(command) = self.robot.get_command_mut(CommandHandle(id)) {
+                    command.move_to(x, y);
+                }
+            }
         }
     }
 
@@ -354,6 +369,8 @@ impl BuildingMenu {
                 }
 
                 if mouse_btn == MouseButton::Left {
+                    self.left_down = true;
+
                     match self.state {
                         BuildingState::Assembling => {
                             self.handle_part_drag(x, y, &game_data, windowing, texture_handler)
@@ -375,6 +392,8 @@ impl BuildingMenu {
             } => {
                 if mouse_btn == MouseButton::Right {
                     self.handle_pan(x, y, false);
+                } else if mouse_btn == MouseButton::Left {
+                    self.left_down = false;
                 }
 
                 match self.state {

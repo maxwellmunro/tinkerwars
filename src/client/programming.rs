@@ -255,7 +255,8 @@ impl Command {
                         (i_x + o_x) / 2,
                         i_y.min(o_y),
                         ((3 * constants::TEXTURE_SCALE) as f32 * scale) as u32,
-                        (o_y - i_y).abs() as u32,
+                        (o_y - i_y).abs() as u32
+                            + ((3 * constants::TEXTURE_SCALE) as f32 * scale) as u32,
                     );
 
                     let rect_c = Rect::new(

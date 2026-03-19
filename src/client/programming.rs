@@ -133,10 +133,7 @@ impl CommandSet {
 
         outputs_to_remove.iter().for_each(|(handle, o, i)| {
             if let Some(command) = self.commands.get_mut(&handle.0) {
-                command.outputs[*o as usize].remove(*i as usize);
-                println!("Removed command at {} {} {}", handle.0, o, i);
-            } else {
-                println!("Failed to remove command at {} {} {}", handle.0, o, i);
+                command.disconnect(*o, *i);
             }
         });
 
@@ -282,6 +279,10 @@ impl Command {
         self.outputs[o_id as usize].push((handle, i_id));
     }
 
+    pub fn disconnect(&mut self, o: u64, i: u64) {
+        self.outputs[o as usize].remove(i as usize);
+    }
+
     pub fn evaluate(&self, world: &mut World, command_set: &mut CommandSet) -> Data {
         let inputs = self
             .inputs
@@ -399,6 +400,10 @@ impl Command {
 
     pub(in crate::client) fn get_pos(&self) -> (f32, f32) {
         (self.pos.x, self.pos.y)
+    }
+
+    pub(in crate::client) fn get_outputs(&self) -> &Vec<Vec<(CommandHandle, u8)>> {
+        &self.outputs
     }
 }
 

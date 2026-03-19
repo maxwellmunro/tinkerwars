@@ -189,6 +189,8 @@ pub(in crate::client) struct BuildingMenu {
 
     robot: Robot,
 
+    last_world_mouse_pos: (f32, f32),
+
     /// Part/command king current being dragged
     part_selected: Option<ComponentKind>,
     command_selected: Option<CommandData>,
@@ -215,6 +217,7 @@ pub(in crate::client) struct BuildingMenu {
     link_selected: Option<(CommandHandle, u8)>,
 
     left_down: bool,
+    right_down: bool,
 }
 
 impl BuildingMenu {
@@ -234,6 +237,8 @@ impl BuildingMenu {
             zoom: 1.0,
 
             robot: Robot::new(),
+
+            last_world_mouse_pos: (0.0, 0.0),
 
             part_selected: None,
             command_selected: None,
@@ -260,6 +265,7 @@ impl BuildingMenu {
             link_selected: None,
 
             left_down: false,
+            right_down: false,
         }
     }
 
@@ -365,6 +371,10 @@ impl BuildingMenu {
                 x, y, mouse_btn, ..
             } => {
                 if mouse_btn == MouseButton::Right {
+                    self.right_down = true;
+                }
+
+                if mouse_btn == MouseButton::Middle {
                     self.handle_pan(x, y, true);
                 }
 
@@ -391,9 +401,11 @@ impl BuildingMenu {
                 x, y, mouse_btn, ..
             } => {
                 if mouse_btn == MouseButton::Right {
-                    self.handle_pan(x, y, false);
+                    self.right_down = false;
                 } else if mouse_btn == MouseButton::Left {
                     self.left_down = false;
+                } else if mouse_btn == MouseButton::Middle {
+                    self.handle_pan(x, y, false);
                 }
 
                 match self.state {
@@ -424,6 +436,98 @@ impl BuildingMenu {
             Event::KeyUp {
                 keycode: Some(key), ..
             } => self.handle_key_event(game_data, key, false).await,
+            Event::MouseMotion { x, y, .. } => match self.state {
+                BuildingState::Assembling => {}
+                BuildingState::Programming => {
+                    let (w_x, w_y) = self.to_world(x, y);
+                    if self.right_down {
+                        let cutting_line = &[
+                            point![w_x, w_y],
+                            point![self.last_world_mouse_pos.0, self.last_world_mouse_pos.1],
+                        ];
+
+                        let handles = self
+                            .robot
+                            .commands
+                            .get_commands()
+                            .iter()
+                            .map(|(o_handle, command)| {
+                                command
+                                    .get_outputs()
+                                    .iter()
+                                    .enumerate()
+                                    .map(|(o_id, inputs)| {
+                                        inputs
+                                            .iter()
+                                            .enumerate()
+                                            .map(|(i_id, (i_handle, input))| {
+                                                (
+                                                    *o_handle,
+                                                    o_id.clone(),
+                                                    *i_handle,
+                                                    i_id.clone(),
+                                                    *input,
+                                                )
+                                                    .clone()
+                                            })
+                                            .collect::<Vec<_>>()
+                                    })
+                                    .flatten()
+                                    .collect::<Vec<_>>()
+                            })
+                            .flatten()
+                            .filter(|(o_handle, o_id, i_handle, _, input)| {
+                                let Some(o_command) =
+                                    self.robot.commands.get(CommandHandle(*o_handle))
+                                else {
+                                    return false;
+                                };
+                                let Some(i_command) = self.robot.commands.get(*i_handle) else {
+                                    return false;
+                                };
+
+                                let output =
+                                    get_command_link_positions(o_command.get_data())[1][*o_id];
+                                let input = get_command_link_positions(i_command.get_data())[0]
+                                    [*input as usize];
+
+                                let (o_x, o_y) = (
+                                    output.x + o_command.get_pos().0,
+                                    output.y + o_command.get_pos().1,
+                                );
+                                let (i_x, i_y) = (
+                                    input.x + i_command.get_pos().0,
+                                    input.y + i_command.get_pos().1,
+                                );
+
+                                let a = &[point![o_x, o_y], point![(o_x + i_x) / 2.0, o_y]];
+                                let b = &[
+                                    point![(o_x + i_x) / 2.0, o_y],
+                                    point![(o_x + i_x) / 2.0, i_y],
+                                ];
+                                let c = &[point![(o_x + i_x) / 2.0, i_y], point![i_x, i_y]];
+
+                                polygon::lines_intersect(cutting_line, a)
+                                    || polygon::lines_intersect(cutting_line, b)
+                                    || polygon::lines_intersect(cutting_line, c)
+                            })
+                            .collect::<Vec<_>>();
+
+                        dbg!(&cutting_line);
+
+                        handles
+                            .into_iter()
+                            .for_each(|(o_handle, o_id, _, i_id, _)| {
+                                if let Some(command) =
+                                    self.robot.commands.get_mut(CommandHandle(o_handle))
+                                {
+                                    command.disconnect(o_id as u64, i_id as u64);
+                                }
+                            });
+                    }
+                    self.last_world_mouse_pos = (w_x, w_y);
+                }
+            },
             _ => {}
         }
     }

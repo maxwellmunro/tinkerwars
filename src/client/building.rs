@@ -297,7 +297,12 @@ impl BuildingMenu {
                     let state_tex = texture_handler.get_texture(TextureId::BuildingStateButton);
 
                     let src = Rect::new(0, 0, 63, 25);
-                    let dst = Rect::new(0, 20 + rect.height() as i32, state_tex.1.0, state_tex.1.1);
+                    let dst = Rect::new(
+                        10,
+                        20 + rect.height() as i32,
+                        state_tex.1.0,
+                        state_tex.1.1 / 2,
+                    );
                     windowing.canvas.copy(state_tex.0, Some(src), Some(dst))?;
                 }
             }
@@ -316,7 +321,12 @@ impl BuildingMenu {
                 let state_tex = texture_handler.get_texture(TextureId::BuildingStateButton);
 
                 let src = Rect::new(0, 25, 63, 25);
-                let dst = Rect::new(10, 20 + done_size.1 as i32, state_tex.1.0, state_tex.1.1);
+                let dst = Rect::new(
+                    10,
+                    20 + done_size.1 as i32,
+                    state_tex.1.0,
+                    state_tex.1.1 / 2,
+                );
                 windowing.canvas.copy(state_tex.0, Some(src), Some(dst))?;
             }
         }
@@ -349,7 +359,6 @@ impl BuildingMenu {
                             self.handle_part_drag(x, y, &game_data, windowing, texture_handler)
                                 .await;
                             self.handle_component_select(x, y);
-                            self.handle_ui(x, y, game_data, texture_handler).await;
                         }
                         BuildingState::Programming => {
                             self.handle_command_drag(x, y, windowing, texture_handler);
@@ -357,6 +366,8 @@ impl BuildingMenu {
                             self.handle_command_link_start(x, y);
                         }
                     }
+
+                    self.handle_ui(x, y, game_data, texture_handler).await;
                 }
             }
             Event::MouseButtonUp {

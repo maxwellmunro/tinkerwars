@@ -170,10 +170,10 @@ pub mod component_shapes {
     ];
 
     pub const SCREWS: &[&[Point<f32>]] = &[&[
-        point![-1.0, -1.0],
-        point![1.0, -1.0],
-        point![1.0, 1.0],
-        point![-1.0, 1.0],
+        point![-0.3, 0.0],
+        point![0.0, -0.3],
+        point![0.3, 0.0],
+        point![0.0, 0.3],
     ]];
 }
 

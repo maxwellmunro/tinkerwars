@@ -1,10 +1,10 @@
-use crate::constants;
 use crate::game::game_data::State;
 use crate::packet::TcpPacket;
 use crate::{
     client::{client::Client, interface_handler},
     texture_handler::TextureId,
 };
+use crate::{constants, polygon};
 use sdl2::event::WindowEvent;
 use sdl2::{event::Event, keyboard::Keycode, mouse::MouseButton, rect::Point};
 
@@ -171,12 +171,31 @@ async fn handle_part_picking_event(client: &mut Client<'_>, event: Event) {
             let (window_w, window_h) = client.windowing.canvas.window().size();
 
             for (id, item) in component_list.items() {
-                let dx = (item.cur_x() * window_w as f32) as i32 - x;
-                let dy = (item.cur_y() * window_h as f32) as i32 - y;
+                //                let dx = (item.cur_x() * window_w as f32) as i32 - x;
+                //                let dy = (item.cur_y() * window_h as f32) as i32 - y;
+                //
+                //                let square_d = dx * dx + dy * dy;
+                //
+                //                if square_d < constants::PART_SELECT_SQUARE_DIST {
+                //                    item_selected = Some((id, item.kind(), item.count()).clone());
+                //                    break;
+                //                }
 
-                let square_d = dx * dx + dy * dy;
+                let shapes = constants::get_component_shape(item.kind());
+                if shapes.into_iter().any(|shape| {
+                    let mut shape = shape.to_vec();
+                    polygon::rotate_polygon(&mut shape, item.cur_rot());
+                    polygon::scale_polygon(&mut shape, constants::PIXELS_PER_METER);
+                    let dx = (item.cur_x() * window_w as f32) as i32;
+                    let dy = (item.cur_y() * window_h as f32) as i32;
 
-                if square_d < constants::PART_SELECT_SQUARE_DIST {
+                    polygon::translate_polygon(&mut shape, dx as f32, dy as f32);
+
+                    polygon::point_intersects_polygon(
+                        rapier2d::math::Point::new(x as f32, y as f32),
+                        &shape,
+                    )
+                }) {
                     item_selected = Some((id, item.kind(), item.count()).clone());
                     break;
                 }

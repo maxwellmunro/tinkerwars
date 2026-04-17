@@ -1,6 +1,6 @@
 use crate::game::game_data::State;
 use crate::server::server::Server;
-use crate::texture_handler::{TextureHandler, TextureId};
+use crate::texture_handler::{TextureHandler, TextureId, destroy};
 use crate::ticks;
 use sdl2::pixels::Color;
 use sdl2::rect::{Point, Rect};
@@ -116,6 +116,7 @@ fn render_lobby_menu(
                 tex.1.1,
             );
             canvas.copy(&tex.0, None, Some(rect))?;
+            destroy(tex);
 
             Ok::<(), String>(())
         })?;
@@ -166,6 +167,7 @@ fn render_part_picking_menu(
                 tex.1.1,
             );
             canvas.copy(&tex.0, None, Some(rect))?;
+            destroy(tex);
 
             if *id == picking_id {
                 canvas.copy_ex(
@@ -217,6 +219,7 @@ fn render_building_menu(
         tex.1.1,
     );
     canvas.copy(&tex.0, None, Some(rect))?;
+    destroy(tex);
 
     Ok(())
 }

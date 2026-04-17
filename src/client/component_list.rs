@@ -1,5 +1,5 @@
 use crate::game::component::{ComponentKind, render_component};
-use crate::texture_handler::TextureHandler;
+use crate::texture_handler::{TextureHandler, destroy};
 use crate::{constants, ticks};
 use rand::Rng;
 use sdl2::pixels::Color;
@@ -110,6 +110,7 @@ impl ComponentListItem {
         );
 
         canvas.copy(&text_tex.0, None, Some(text_rect))?;
+        destroy(text_tex);
 
         Ok(())
     }

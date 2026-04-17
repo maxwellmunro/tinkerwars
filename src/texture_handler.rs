@@ -157,6 +157,8 @@ define_textures! {
     SelectedProgrammingTernary => "building/selected_programming_icons/ternary.png",
     SelectedProgrammingTrue => "building/selected_programming_icons/true.png",
     SelectedProgrammingXor => "building/selected_programming_icons/xor.png",
+
+    PartSettingsBackground => "building/part_settings_background.png"
 }
 
 pub struct TextureHandler<'ttf> {
@@ -217,5 +219,11 @@ impl<'ttf> TextureHandler<'ttf> {
             tex,
             (*w * constants::TEXTURE_SCALE, *h * constants::TEXTURE_SCALE),
         )
+    }
+}
+
+pub fn destroy(tex: (Texture, (u32, u32))) {
+    unsafe {
+        tex.0.destroy();
     }
 }

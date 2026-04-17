@@ -3,6 +3,9 @@ use crate::game::component::{ComponentActivationState, ComponentKind};
 use crate::texture_handler::TextureId;
 use rapier2d::math::Point;
 use sdl2::keyboard::Keycode;
+use sdl2::pixels::Color;
+
+pub const TEXT_COLOR: Color = Color::RGB(42, 36, 34);
 
 pub const SERVER_CONNECT_TIMEOUT_MS: u64 = 5000;
 pub const PHYSICS_STEPS: usize = 10;
@@ -12,6 +15,7 @@ pub const MOTOR_MAX_TORQUE: f32 = 10000.0;
 pub const PISTON_MAX_FORCE: f32 = 10000.0;
 pub const PISTON_LIMITS: [f32; 2] = [0.0, 6.0];
 pub const TEXTURE_SCALE: u32 = 4;
+pub const COMMAND_SETTINGS_TEXT_SCALE: u32 = 2;
 pub const PIXELS_PER_METER: f32 = 20.0;
 
 pub const PART_LIST_MOVE_FAC: f32 = 500.0;
@@ -26,6 +30,8 @@ pub const PART_SELECT_POS_ATTEMPTS: u32 = 10;
 
 /// width of programming blocks links in world units
 pub const PROGRAMMING_LINK_SIZE: f32 = 0.6;
+
+pub const FONT_HEIGHT: i32 = 28 * COMMAND_SETTINGS_TEXT_SCALE as i32;
 
 pub mod window {
     pub const SERVER_TITLE: &str = "Tinkerwars - Server";
@@ -442,10 +448,14 @@ pub const COMMANDS_SET: &[CommandData] = &[
     CommandData::OnKeyDown { key: Keycode::A },
     CommandData::OnKeyUp { key: Keycode::A },
     CommandData::SetState {
-        comps: vec![],
+        comp: None,
         state: ComponentActivationState::None,
+        comp_str: String::new(),
     },
-    CommandData::Const { val: 0.0 },
+    CommandData::Const {
+        val: 0.0,
+        val_str: String::new(),
+    },
     CommandData::True,
     CommandData::False,
     CommandData::Add,

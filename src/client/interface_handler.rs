@@ -1,7 +1,7 @@
 use crate::client::client::Client;
 use crate::client::component_list::ComponentListSet;
 use crate::game::game_data::State;
-use crate::texture_handler::{TextureHandler, TextureId};
+use crate::texture_handler::{TextureHandler, TextureId, destroy};
 use crate::ticks;
 use sdl2::pixels::Color;
 use sdl2::rect::{Point, Rect};
@@ -210,6 +210,8 @@ fn render_joining_menu(
         ip_box_rect.height(),
     ));
     canvas.copy(&ip_text.0, None, Some(ip_text_rect))?;
+    destroy(ip_text);
+
     canvas.set_clip_rect(clip);
 
     if typing_ip {
@@ -250,6 +252,8 @@ fn render_joining_menu(
         username_box_rect.height(),
     ));
     canvas.copy(&username_text.0, None, Some(username_text_rect))?;
+    destroy(username_text);
+
     canvas.set_clip_rect(clip);
 
     if typing_username {
@@ -295,6 +299,7 @@ fn render_connecting_menu(
         tex.1.1,
     );
     canvas.copy(&tex.0, None, Some(rect))?;
+    destroy(tex);
 
     Ok(())
 }
@@ -341,6 +346,7 @@ pub fn render_connect_failed_menu(
 
         let rect = Rect::new(x, y, text.1.0, text.1.1);
         canvas.copy(&text.0, None, Some(rect))?;
+        destroy(text);
     }
 
     Ok(())
@@ -375,6 +381,7 @@ fn render_lobby_menu(
         i += 1;
 
         canvas.copy(&text.0, None, Some(rect))?;
+        destroy(text);
     }
 
     Ok(())

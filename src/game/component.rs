@@ -13,14 +13,46 @@ use std::f32::consts::PI;
 
 #[derive(PartialEq, Clone, Copy, Debug, Default, Encode, Decode)]
 pub(crate) enum ComponentActivationState {
-    #[default]
     None,
     Spinning,
     ReverseSpin,
-    NotSpinning,
     Extending,
+    #[default]
     Retracting,
-    PitonStopped,
+}
+
+impl ComponentActivationState {
+    pub(crate) fn next(&self) -> Self {
+        match self {
+            ComponentActivationState::None => ComponentActivationState::Spinning,
+            ComponentActivationState::Spinning => ComponentActivationState::ReverseSpin,
+            ComponentActivationState::ReverseSpin => ComponentActivationState::Extending,
+            ComponentActivationState::Extending => ComponentActivationState::Retracting,
+            ComponentActivationState::Retracting => ComponentActivationState::None,
+        }
+    }
+
+    pub(crate) fn prev(&self) -> Self {
+        match self {
+            ComponentActivationState::None => ComponentActivationState::Retracting,
+            ComponentActivationState::Spinning => ComponentActivationState::None,
+            ComponentActivationState::ReverseSpin => ComponentActivationState::Spinning,
+            ComponentActivationState::Extending => ComponentActivationState::ReverseSpin,
+            ComponentActivationState::Retracting => ComponentActivationState::Extending,
+        }
+    }
+}
+
+impl ToString for ComponentActivationState {
+    fn to_string(&self) -> String {
+        String::from(match self {
+            ComponentActivationState::None => "None",
+            ComponentActivationState::Spinning => "Spinning",
+            ComponentActivationState::ReverseSpin => "Rev Spin",
+            ComponentActivationState::Extending => "Extending",
+            ComponentActivationState::Retracting => "Retracting",
+        })
+    }
 }
 
 #[derive(PartialEq, Clone, Copy, Debug, Eq, Hash, Encode, Decode)]

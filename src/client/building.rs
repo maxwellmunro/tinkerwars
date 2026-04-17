@@ -1,9 +1,9 @@
 use crate::client::programming::{Command, CommandData, CommandHandle, CommandSet, render_command};
 use crate::constants::{get_command_link_positions, get_command_shape};
-use crate::game::component::{ComponentKind, render_component};
+use crate::game::component::{ComponentHandle, ComponentKind, render_component};
 use crate::game::game_data::{GameData, State};
 use crate::polygon::Vec2;
-use crate::texture_handler::{TextureHandler, TextureId};
+use crate::texture_handler::{TextureHandler, TextureId, destroy};
 use crate::windowing::Windowing;
 use crate::{constants, polygon};
 use rapier2d::na::point;
@@ -13,6 +13,7 @@ use sdl2::keyboard::Keycode;
 use sdl2::mouse::{MouseButton, MouseState};
 use sdl2::pixels::Color;
 use sdl2::rect::{Point, Rect};
+use sdl2::render::ClippingRect;
 use std::collections::HashMap;
 use std::f32::consts::PI;
 
@@ -218,6 +219,8 @@ pub(in crate::client) struct BuildingMenu {
 
     left_down: bool,
     right_down: bool,
+
+    editing_command_settings: bool,
 }
 
 impl BuildingMenu {
@@ -266,6 +269,8 @@ impl BuildingMenu {
 
             left_down: false,
             right_down: false,
+
+            editing_command_settings: false,
         }
     }
 
@@ -279,6 +284,10 @@ impl BuildingMenu {
         }
 
         let state = MouseState::new(&windowing.event_pump);
+        if state.x() < 300 || state.x() > windowing.canvas.window().size().0 as i32 - 200 {
+            return;
+        }
+
         let (x, y) = self.to_world(state.x(), state.y());
 
         if self.left_down {
@@ -308,23 +317,10 @@ impl BuildingMenu {
                     self.render_part_select(game_data, windowing, texture_handler)
                         .await?;
                     self.render_dragging_part(windowing, texture_handler)?;
+                }
 
-                    let done_tex = texture_handler.get_texture(TextureId::DoneButton);
-
-                    let rect = Rect::new(10, 10, done_tex.1.0, done_tex.1.1);
-
-                    windowing.canvas.copy(done_tex.0, None, Some(rect))?;
-
-                    let state_tex = texture_handler.get_texture(TextureId::BuildingStateButton);
-
-                    let src = Rect::new(0, 0, 63, 25);
-                    let dst = Rect::new(
-                        10,
-                        20 + rect.height() as i32,
-                        state_tex.1.0,
-                        state_tex.1.1 / 2,
-                    );
-                    windowing.canvas.copy(state_tex.0, Some(src), Some(dst))?;
+                if let Some(component_id) = self.selected_component_id {
+                    self.render_component_settings(windowing, texture_handler, component_id)?;
                 }
             }
             BuildingState::Programming => {
@@ -337,20 +333,36 @@ impl BuildingMenu {
                 self.render_commands_list(windowing, texture_handler)?;
                 self.render_dragging_command(windowing, texture_handler)?;
 
-                let done_size = texture_handler.get_texture(TextureId::DoneButton).1;
-
-                let state_tex = texture_handler.get_texture(TextureId::BuildingStateButton);
-
-                let src = Rect::new(0, 25, 63, 25);
-                let dst = Rect::new(
-                    10,
-                    20 + done_size.1 as i32,
-                    state_tex.1.0,
-                    state_tex.1.1 / 2,
-                );
-                windowing.canvas.copy(state_tex.0, Some(src), Some(dst))?;
+                if let Some(command_id) = self.selected_command_id {
+                    self.render_command_settings(windowing, texture_handler, command_id)?;
+                }
             }
         }
+
+        let state_rect = self.get_state_rect(texture_handler);
+        let state_tex = texture_handler.get_texture(TextureId::BuildingStateButton);
+        let state_src = Rect::new(
+            0,
+            match self.state {
+                BuildingState::Assembling => 0,
+                BuildingState::Programming => state_tex.1.1 / constants::TEXTURE_SCALE / 2,
+            } as i32,
+            state_tex.1.0 / constants::TEXTURE_SCALE,
+            state_tex.1.1 / constants::TEXTURE_SCALE / 2,
+        );
+        let done_tex = texture_handler.get_texture(TextureId::DoneButton);
+
+        let done_rect = Rect::new(
+            state_rect.x(),
+            state_rect.y() + state_rect.height() as i32 + 10,
+            done_tex.1.0,
+            done_tex.1.1,
+        );
+
+        windowing
+            .canvas
+            .copy(state_tex.0, Some(state_src), Some(state_rect))?;
+        windowing.canvas.copy(done_tex.0, None, Some(done_rect))?;
 
         Ok(())
     }
@@ -395,6 +407,10 @@ impl BuildingMenu {
                     }
 
                     self.handle_ui(x, y, game_data, texture_handler).await;
+                }
+
+                if matches!(self.state, BuildingState::Programming) {
+                    self.handle_command_settings(x, y, mouse_btn);
                 }
             }
             Event::MouseButtonUp {
@@ -512,8 +528,6 @@ impl BuildingMenu {
                                     || polygon::lines_intersect(cutting_line, c)
                             })
                             .collect::<Vec<_>>();
-
-                        dbg!(&cutting_line);
 
                         handles
                             .into_iter()
@@ -701,6 +715,8 @@ impl BuildingMenu {
                 );
                 windowing.canvas.copy(&tex.0, None, Some(rect))?;
 
+                destroy(tex);
+
                 Ok::<(), String>(())
             })
     }
@@ -781,6 +797,172 @@ impl BuildingMenu {
             )?;
         }
 
+        Ok(())
+    }
+
+    fn render_command_settings(
+        &self,
+        windowing: &mut Windowing,
+        texture_handler: &TextureHandler,
+        command_id: u64,
+    ) -> Result<(), String> {
+        let Some(command) = self.robot.get_command(CommandHandle(command_id)) else {
+            return Ok(());
+        };
+
+        let background_tex = texture_handler.get_texture(TextureId::PartSettingsBackground);
+
+        for y in 0..=windowing.canvas.window().size().1 / background_tex.1.1 {
+            let rect = Rect::new(
+                0,
+                (y * background_tex.1.1) as i32,
+                background_tex.1.0,
+                background_tex.1.1,
+            );
+            windowing.canvas.copy(background_tex.0, None, Some(rect))?;
+        }
+
+        let side_bar_width = background_tex.1.0 as i32 - 10;
+
+        let clip = windowing.canvas.clip_rect();
+        windowing.canvas.set_clip_rect(ClippingRect::Some(Rect::new(
+            0,
+            0,
+            background_tex.1.0 - 10,
+            windowing.canvas.window().size().1,
+        )));
+
+        match command.get_data() {
+            CommandData::OnKeyDown { key } | CommandData::OnKeyUp { key } => {
+                let tex = texture_handler.render_text(
+                    &format!(
+                        "Key: {}",
+                        if self.editing_command_settings {
+                            "Listening...".to_string()
+                        } else {
+                            key.name()
+                        }
+                    ),
+                    &mut windowing.canvas,
+                    constants::TEXT_COLOR,
+                )?;
+
+                let rect = Rect::new(
+                    if self.editing_command_settings {
+                        10.min(
+                            side_bar_width
+                                - (tex.1.0 * constants::COMMAND_SETTINGS_TEXT_SCALE) as i32,
+                        )
+                    } else {
+                        10
+                    },
+                    10,
+                    tex.1.0 * constants::COMMAND_SETTINGS_TEXT_SCALE,
+                    tex.1.1 * constants::COMMAND_SETTINGS_TEXT_SCALE,
+                );
+
+                windowing.canvas.copy(&tex.0, None, Some(rect))?;
+
+                destroy(tex);
+            }
+            CommandData::SetState {
+                comp,
+                state,
+                comp_str,
+            } => {
+                let comp_tex = texture_handler.render_text(
+                    &format!("ID: {}", comp_str),
+                    &mut windowing.canvas,
+                    constants::TEXT_COLOR,
+                )?;
+
+                let state_tex = texture_handler.render_text(
+                    &state.to_string(),
+                    &mut windowing.canvas,
+                    constants::TEXT_COLOR,
+                )?;
+
+                let comp_rect = Rect::new(
+                    if self.editing_command_settings {
+                        10.min(
+                            side_bar_width
+                                - (comp_tex.1.0 * constants::COMMAND_SETTINGS_TEXT_SCALE) as i32,
+                        )
+                    } else {
+                        10
+                    },
+                    10,
+                    comp_tex.1.0 * constants::COMMAND_SETTINGS_TEXT_SCALE,
+                    comp_tex.1.1 * constants::COMMAND_SETTINGS_TEXT_SCALE,
+                );
+                let state_rect = Rect::new(
+                    10,
+                    comp_rect.height() as i32 + 20,
+                    state_tex.1.0 * constants::COMMAND_SETTINGS_TEXT_SCALE,
+                    state_tex.1.1 * constants::COMMAND_SETTINGS_TEXT_SCALE,
+                );
+
+                windowing.canvas.copy(&comp_tex.0, None, Some(comp_rect))?;
+                windowing
+                    .canvas
+                    .copy(&state_tex.0, None, Some(state_rect))?;
+
+                destroy(comp_tex);
+                destroy(state_tex);
+            }
+            CommandData::Const { val_str, .. } => {
+                let tex = texture_handler.render_text(
+                    &format!("Val: {}", val_str),
+                    &mut windowing.canvas,
+                    constants::TEXT_COLOR,
+                )?;
+
+                let rect = Rect::new(
+                    if self.editing_command_settings {
+                        10.min(
+                            side_bar_width
+                                - (tex.1.0 * constants::COMMAND_SETTINGS_TEXT_SCALE) as i32,
+                        )
+                    } else {
+                        10
+                    },
+                    10,
+                    tex.1.0 * constants::COMMAND_SETTINGS_TEXT_SCALE,
+                    tex.1.1 * constants::COMMAND_SETTINGS_TEXT_SCALE,
+                );
+
+                windowing.canvas.copy(&tex.0, None, Some(rect))?;
+                destroy(tex);
+            }
+            _ => {}
+        }
+
+        windowing.canvas.set_clip_rect(clip);
+
+        Ok(())
+    }
+
+    fn render_component_settings(
+        &self,
+        windowing: &mut Windowing,
+        texture_handler: &TextureHandler,
+        component_id: u64,
+    ) -> Result<(), String> {
+        let Some(component) = self.robot.components.get(&component_id) else {
+            return Ok(());
+        };
+
+        let background_tex = texture_handler.get_texture(TextureId::PartSettingsBackground);
+
+        for y in 0..=windowing.canvas.window().size().1 / background_tex.1.1 {
+            let rect = Rect::new(
+                0,
+                (y * background_tex.1.1) as i32,
+                background_tex.1.0,
+                background_tex.1.1,
+            );
+            windowing.canvas.copy(background_tex.0, None, Some(rect))?;
+        }
         Ok(())
     }
 
@@ -1018,12 +1200,76 @@ impl BuildingMenu {
 
             BuildingState::Programming => {
                 if pressed && let Some(id) = self.selected_command_id {
-                    if key != Keycode::DELETE {
-                        return;
+                    if key == Keycode::DELETE {
+                        self.robot.commands.remove(CommandHandle(id));
+                        self.selected_command_id = None;
                     }
 
-                    self.robot.commands.remove(CommandHandle(id));
-                    self.selected_command_id = None;
+                    if self.editing_command_settings {
+                        if let Some(command) = self.robot.get_command_mut(CommandHandle(id)) {
+                            match command.get_data_mut() {
+                                CommandData::OnKeyDown { key: key_mut }
+                                | CommandData::OnKeyUp { key: key_mut } => {
+                                    *key_mut = key;
+                                    self.editing_command_settings = false;
+                                }
+                                CommandData::Const { val, val_str } => {
+                                    if key == Keycode::Backspace && !val_str.is_empty() {
+                                        val_str.pop();
+                                        return;
+                                    }
+                                    if key == Keycode::Return {
+                                        if let Ok(v) = val_str.parse::<f32>() {
+                                            *val = v;
+                                        }
+                                        *val_str = val.to_string();
+
+                                        self.editing_command_settings = false;
+
+                                        return;
+                                    }
+
+                                    let character = key.name().chars().next().unwrap();
+                                    if character.is_numeric() {
+                                        *val_str += &format!("{}", character);
+                                    } else if character == '.' && !val_str.contains('.') {
+                                        *val_str += ".";
+                                    } else if character == '-' && val_str.is_empty() {
+                                        *val_str += "-";
+                                    }
+                                }
+                                CommandData::SetState { comp, comp_str, .. } => {
+                                    if key == Keycode::Backspace && !comp_str.is_empty() {
+                                        comp_str.pop();
+                                        return;
+                                    }
+                                    if key == Keycode::Return {
+                                        if let Ok(v) = comp_str.parse::<u64>() {
+                                            *comp = Some(ComponentHandle(v));
+                                        } else {
+                                            *comp = None;
+                                        }
+
+                                        *comp_str = if let Some(handle) = comp {
+                                            handle.0.to_string()
+                                        } else {
+                                            "None".to_string()
+                                        };
+
+                                        self.editing_command_settings = false;
+
+                                        return;
+                                    }
+
+                                    let character = key.name().chars().next().unwrap();
+                                    if character.is_numeric() {
+                                        *comp_str += &format!("{}", character);
+                                    }
+                                }
+                                _ => {}
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -1139,6 +1385,10 @@ impl BuildingMenu {
     }
 
     fn handle_command_select(&mut self, mouse_x: i32, mouse_y: i32) {
+        if mouse_x < 300 {
+            return;
+        }
+
         let (x, y) = self.to_world(mouse_x, mouse_y);
         let mouse_pos = rapier2d::math::Point::new(x, y);
 
@@ -1167,26 +1417,25 @@ impl BuildingMenu {
     ) {
         let ml = Point::new(mouse_x, mouse_y);
 
-        let done_size = texture_handler.get_texture(TextureId::DoneButton).1;
-        let rect = Rect::new(10, 10, done_size.0, done_size.1);
-        if rect.contains_point(ml) {
-            *game_data.state.write().await = State::InGame;
-        }
-
-        let state_size = texture_handler
-            .get_texture(TextureId::BuildingStateButton)
-            .1;
-        let rect = Rect::new(
-            10,
-            20 + rect.height() as i32,
-            state_size.0,
-            state_size.1 / 2,
-        );
-        if rect.contains_point(ml) {
+        let state_rect = self.get_state_rect(texture_handler);
+        if state_rect.contains_point(ml) {
             self.state = match self.state {
                 BuildingState::Assembling => BuildingState::Programming,
                 BuildingState::Programming => BuildingState::Assembling,
             }
+        }
+
+        let done_tex = texture_handler.get_texture(TextureId::DoneButton);
+
+        let done_rect = Rect::new(
+            state_rect.x(),
+            state_rect.y() + state_rect.height() as i32 + 10,
+            done_tex.1.0,
+            done_tex.1.1,
+        );
+
+        if done_rect.contains_point(ml) {
+            *game_data.state.write().await = State::InGame;
         }
     }
 
@@ -1330,6 +1579,28 @@ impl BuildingMenu {
         }
     }
 
+    fn handle_command_settings(&mut self, mouse_x: i32, mouse_y: i32, mouse_btn: MouseButton) {
+        if let Some(command_id) = self.selected_command_id {
+            if let Some(command) = self.robot.get_command_mut(CommandHandle(command_id)) {
+                self.editing_command_settings = false;
+
+                if mouse_x < 300 && mouse_y < constants::FONT_HEIGHT {
+                    self.editing_command_settings = true;
+                }
+
+                if let CommandData::SetState { state, .. } = command.get_data_mut() {
+                    if mouse_x < 300 && mouse_y > 76 && mouse_y < 56 + 76 {
+                        if mouse_btn == MouseButton::Left {
+                            *state = state.next();
+                        } else if mouse_btn == MouseButton::Right {
+                            *state = state.prev();
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     fn handle_command_link_end(&mut self, mouse_x: i32, mouse_y: i32) {
         let Some(link_selected) = self.link_selected else {
             return;
@@ -1457,5 +1728,23 @@ impl BuildingMenu {
 
     pub fn get_robot(&self) -> &Robot {
         &self.robot
+    }
+
+    fn get_state_rect(&self, texture_handler: &TextureHandler) -> Rect {
+        let size = texture_handler
+            .get_texture(TextureId::BuildingStateButton)
+            .1;
+
+        let x = if matches!(self.state, BuildingState::Assembling)
+            && self.selected_component_id.is_some()
+            || matches!(self.state, BuildingState::Programming)
+                && self.selected_command_id.is_some()
+        {
+            310
+        } else {
+            10
+        };
+
+        Rect::new(x, 10, size.0, size.1 / 2)
     }
 }

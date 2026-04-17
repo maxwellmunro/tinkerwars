@@ -34,12 +34,14 @@ pub enum CommandData {
     },
 
     SetState {
-        comps: Vec<ComponentHandle>,
+        comp: Option<ComponentHandle>,
         state: ComponentActivationState,
+        comp_str: String,
     },
 
     Const {
         val: f32,
+        val_str: String,
     },
 
     True,
@@ -329,8 +331,8 @@ impl Command {
                 };
                 Data::Boolean(matches!(state, KeyState::JustReleased))
             }
-            CommandData::SetState { comps, state } => {
-                for h in comps {
+            CommandData::SetState { comp, state, .. } => {
+                if let Some(h) = comp {
                     if let Some(comp) = world.components.get_mut(*h) {
                         comp.set_state(*state);
                     }
@@ -353,7 +355,7 @@ impl Command {
             CommandData::Atan2 => Data::Number(nums[0].atan2(nums[1])),
             CommandData::GreaterThan => Data::Boolean(nums[0] > nums[1]),
             CommandData::LessThan => Data::Boolean(nums[0] < nums[1]),
-            CommandData::Const { val } => Data::Number(*val),
+            CommandData::Const { val, .. } => Data::Number(*val),
             CommandData::True => Data::Boolean(true),
             CommandData::False => Data::Boolean(false),
             CommandData::And => Data::Boolean(bools[0] && bools[1]),
@@ -396,6 +398,10 @@ impl Command {
 
     pub(in crate::client) fn get_data(&self) -> &CommandData {
         &self.data
+    }
+
+    pub(in crate::client) fn get_data_mut(&mut self) -> &mut CommandData {
+        &mut self.data
     }
 
     pub(in crate::client) fn get_pos(&self) -> (f32, f32) {

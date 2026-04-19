@@ -1,8 +1,9 @@
 use crate::client::client::Client;
 use crate::client::component_list::ComponentListSet;
+use crate::game::component::ComponentKind;
 use crate::game::game_data::State;
 use crate::texture_handler::{TextureHandler, TextureId, destroy};
-use crate::ticks;
+use crate::{constants, ticks};
 use sdl2::pixels::Color;
 use sdl2::rect::{Point, Rect};
 use sdl2::render::Canvas;
@@ -40,6 +41,8 @@ pub(in crate::client) async fn render_menu(client: &mut Client<'_>) -> Result<()
             &mut client.windowing.canvas,
             &client.texture_handler,
             client.game.component_list.read().await,
+            client.game.building_components.read().await,
+            client.scroll,
         ),
         State::BuildingMenu => {
             client
@@ -387,15 +390,66 @@ fn render_lobby_menu(
     Ok(())
 }
 
+fn render_part_picking_component_list(
+    canvas: &mut Canvas<Window>,
+    texture_handler: &TextureHandler<'_>,
+    parts: RwLockReadGuard<HashMap<ComponentKind, u64>>,
+    scroll: i32,
+) -> Result<(), String> {
+    let (window_w, _window_h) = canvas.window().size();
+
+    let box_tex = texture_handler.get_texture(TextureId::BuildingComponentBox);
+
+    let x = window_w as i32 - box_tex.1.0 as i32;
+
+    parts.iter().enumerate().try_for_each(|(i, (kind, count))| {
+        let y = i as i32 * box_tex.1.1 as i32 + scroll;
+
+        let rect = Rect::new(x, y, box_tex.1.1, box_tex.1.1);
+        canvas.copy(&box_tex.0, None, Some(rect))?;
+
+        let tex = texture_handler.get_texture(constants::get_component_icon_texture(*kind));
+        let rect = Rect::new(
+            x + (box_tex.1.0 as i32 - tex.1.0 as i32) / 2,
+            y + (box_tex.1.1 as i32 - tex.1.1 as i32) / 2,
+            tex.1.0,
+            tex.1.1,
+        );
+
+        canvas.copy(&tex.0, None, Some(rect))?;
+
+        let tex = texture_handler.render_text(
+            &format!("x{}", count),
+            canvas,
+            Color::RGB(255, 255, 255),
+        )?;
+        let rect = Rect::new(
+            window_w as i32 - tex.1.0 as i32 - 10,
+            y + box_tex.1.1 as i32 - tex.1.1 as i32 - 10,
+            tex.1.0,
+            tex.1.1,
+        );
+        canvas.copy(&tex.0, None, Some(rect))?;
+
+        destroy(tex);
+
+        Ok::<(), String>(())
+    })
+}
+
 fn render_part_picking_menu(
     canvas: &mut Canvas<Window>,
     texture_handler: &TextureHandler,
     parts: RwLockReadGuard<ComponentListSet>,
+    parts_selected: RwLockReadGuard<HashMap<ComponentKind, u64>>,
+    scroll: i32,
 ) -> Result<(), String> {
     parts
         .items()
         .iter()
         .try_for_each(|part| part.1.render(canvas, texture_handler))?;
+
+    render_part_picking_component_list(canvas, texture_handler, parts_selected, scroll)?;
 
     Ok(())
 }

@@ -1,5 +1,5 @@
 use crate::game::component::{ComponentKind, render_component};
-use crate::texture_handler::{TextureHandler, destroy};
+use crate::texture_handler::{TextureHandler, TextureId, destroy};
 use crate::{constants, ticks};
 use rand::Rng;
 use sdl2::pixels::Color;
@@ -85,11 +85,17 @@ impl ComponentListItem {
     ) -> Result<(), String> {
         let (window_w, window_h) = canvas.window().size();
 
+        let width = window_w
+            - (texture_handler
+                .get_texture(TextureId::BuildingComponentBox)
+                .1
+                .0);
+
         render_component(
             canvas,
             texture_handler,
             self.kind,
-            (self.cur_x() * window_w as f32) as i32,
+            (self.cur_x() * width as f32) as i32,
             (self.cur_y() * window_h as f32) as i32,
             self.cur_rot(),
             1.0,
@@ -103,7 +109,7 @@ impl ComponentListItem {
         )?;
 
         let text_rect = Rect::new(
-            (self.cur_x() * window_w as f32) as i32,
+            (self.cur_x() * width as f32) as i32,
             (self.cur_y() * window_h as f32) as i32,
             text_tex.1.0,
             text_tex.1.1,

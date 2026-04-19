@@ -1,5 +1,6 @@
 use crate::game::game_data::State;
 use crate::packet::TcpPacket;
+use crate::windowing::Windowing;
 use crate::{
     client::{client::Client, interface_handler},
     texture_handler::TextureId,
@@ -17,7 +18,9 @@ pub(in crate::client) async fn handle_event(client: &mut Client<'_>, event: Even
         State::MainMenu => handle_main_menu_event(client, event).await,
         State::JoiningMenu => handle_joining_menu_event(client, event).await,
         State::ConnectFailed => handle_connect_failed_menu_event(client, event).await,
-        State::PartPicking => handle_part_picking_event(client, event).await,
+        State::PartPicking => {
+            handle_part_picking_event(client, event).await
+        }
         State::BuildingMenu => handle_building_menu_event(client, event).await,
         _ => {}
     };
@@ -186,7 +189,14 @@ async fn handle_part_picking_event(client: &mut Client<'_>, event: Event) {
                     let mut shape = shape.to_vec();
                     polygon::rotate_polygon(&mut shape, item.cur_rot());
                     polygon::scale_polygon(&mut shape, constants::PIXELS_PER_METER);
-                    let dx = (item.cur_x() * window_w as f32) as i32;
+
+                    let width = window_w
+                        - (client
+                            .texture_handler
+                            .get_texture(TextureId::BuildingComponentBox)
+                            .1
+                            .0);
+                    let dx = (item.cur_x() * width as f32) as i32;
                     let dy = (item.cur_y() * window_h as f32) as i32;
 
                     polygon::translate_polygon(&mut shape, dx as f32, dy as f32);
@@ -228,6 +238,13 @@ async fn handle_part_picking_event(client: &mut Client<'_>, event: Event) {
             }
 
             *client.game.my_turn_picking.write().await = false;
+        }
+        Event::MouseWheel {
+            mouse_x,
+            y,
+            ..
+        } => {
+            client.handle_part_scrolling(mouse_x, y);
         }
         _ => {}
     }

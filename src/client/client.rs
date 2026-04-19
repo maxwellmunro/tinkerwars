@@ -3,7 +3,7 @@ use crate::client::network_handler::NetworkHandler;
 use crate::client::{event_handler, interface_handler};
 use crate::game::game_data::{GameData, State};
 use crate::game::world::World;
-use crate::texture_handler::TextureHandler;
+use crate::texture_handler::{TextureHandler, TextureId};
 use crate::windowing::Windowing;
 use crate::{constants, ticks};
 use core::net::SocketAddr;
@@ -30,6 +30,9 @@ pub struct Client<'ttf> {
     running: bool,
     pub(in crate::client) typing_ip: bool,
     pub(in crate::client) typing_username: bool,
+
+    pub(in crate::client) scroll: i32,
+    target_scroll: i32,
 }
 
 impl<'ttf> Client<'ttf> {
@@ -52,6 +55,9 @@ impl<'ttf> Client<'ttf> {
             running: true,
             typing_ip: false,
             typing_username: false,
+
+            scroll: 0,
+            target_scroll: 0,
         })
     }
 
@@ -101,6 +107,14 @@ impl<'ttf> Client<'ttf> {
             .items_mut()
             .iter_mut()
             .for_each(|(_, c)| c.tick(dt));
+
+        let d_scroll = self.target_scroll - self.scroll;
+        if d_scroll.abs() > 0 {
+            let sign = d_scroll / d_scroll.abs();
+            let mag = (d_scroll as f32 * dt * 10.0).abs().max(1.0);
+
+            self.scroll += sign * mag as i32;
+        }
     }
 
     async fn render(&mut self) -> Result<(), String> {
@@ -188,5 +202,27 @@ impl<'ttf> Client<'ttf> {
 
     pub fn stop(&mut self) {
         self.running = false;
+    }
+
+    fn scroll(&mut self, amount: i32) {
+        self.target_scroll += amount;
+        self.target_scroll = self.target_scroll.min(0);
+    }
+
+    pub(crate) fn handle_part_scrolling(
+        &mut self,
+        mouse_x: i32,
+        amount: i32,
+    ) {
+        let (window_w, _window_h) = self.windowing.canvas.window().size();
+
+        let box_tex = self.texture_handler.get_texture(TextureId::BuildingComponentBox);
+
+        let x = window_w as i32 - box_tex.1.0 as i32;
+
+        if mouse_x >= x {
+            self.scroll(amount * box_tex.1.1 as i32);
+            return;
+        }
     }
 }

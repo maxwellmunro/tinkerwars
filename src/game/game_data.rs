@@ -34,4 +34,5 @@ pub(crate) struct GameData {
     pub(crate) component_list: Arc<RwLock<ComponentListSet>>,
     pub(crate) building_components: Arc<RwLock<HashMap<ComponentKind, u64>>>,
     pub(crate) robot: Arc<RwLock<Robot>>,
+    pub(crate) part_picking_scoll: i32,
 }
